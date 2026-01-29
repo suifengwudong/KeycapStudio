@@ -17,9 +17,20 @@ export class AsyncKeycapGenerator {
   async generateAsync(params) {
     // 生成缓存键
     const cacheKey = this._getCacheKey(params);
+
+    // ✅ 添加调试日志
+    console.log('🔧 生成键帽参数:', {
+        profile: params.profile,
+        size: params.size,
+        topRadius: params.topRadius,
+        wallThickness: params.wallThickness,
+        hasStem: params.hasStem,
+        cacheKey
+    });
     
     // 检查缓存
     if (this.cache.has(cacheKey)) {
+      console.log('✅ 使用缓存');
       return this.cache.get(cacheKey);
     }
 
@@ -40,10 +51,11 @@ export class AsyncKeycapGenerator {
             
             // 缓存结果 (简单的LRU策略可以在这里实现，目前先无限制)
             this.cache.set(cacheKey, result);
+            console.log('✅ 生成完成并缓存');
             
             resolve(result);
         } catch (e) {
-            console.error("Geometry generation failed", e);
+            console.error("❌ 几何体生成失败", e);
             resolve(null);
         }
       }, 50); // 稍微延迟一点，确保React有时间渲染Loading状态
