@@ -1,0 +1,49 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+export const useKeycapStore = create(
+  persist(
+    (set, get) => ({
+      // 当前键帽参数
+      params: {
+        profile: 'Cherry',
+        size: '1u',
+        color: '#ffffff',
+        text: 'A',
+        fontSize: 14,
+        textDepth: 0.5,
+        topRadius: 0.5,
+        wallThickness: 1.5,
+        hasStem: true,
+        
+        // 表面处理
+        texture: 'smooth', // smooth, matte, glossy, textured
+        pattern: null,     // 图案ID
+      },
+
+      // 更新参数
+      updateParams: (newParams) => 
+        set((state) => ({ 
+          params: { ...state.params, ...newParams } 
+        })),
+
+      // 重置为默认值
+      resetParams: () => 
+        set(() => ({ 
+          params: get().defaultParams 
+        })),
+
+      // 默认参数
+      defaultParams: {
+        profile: 'Cherry',
+        size: '1u',
+        color: '#ffffff',
+        // ...
+      }
+    }),
+    {
+      name: 'keycap-storage', // LocalStorage key
+      partialize: (state) => ({ params: state.params })
+    }
+  )
+);
