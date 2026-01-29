@@ -38,8 +38,14 @@ export class KeycapGenerator {
 
   _createBaseMesh(bottomWidth, bottomDepth, height, profileData) {
     // 基础参数
-    const steps = 6; // 细分段数
-    const radius = 1.0; // 侧边圆角半径
+    const steps = 10; // 提高细分段数以获得更平滑的角落
+    
+    // 关键修复：RoundedBoxGeometry width/height/depth 初始为 1
+    // 如果 radius 设为 1，就会变成球体。
+    // 我们需要根据实际尺寸比例反推一个合适的初始 radius。
+    // 假设我们希望最终圆角大约是 1-2mm，而平均宽度是 18mm。
+    // 那么 normalized radius 应该是 1/18 ≈ 0.05 或 更小
+    const radius = 0.05; 
     
     // 使用 RoundedBoxGeometry 作为基础
     // 创建一个归一化的 RoundedBox (1x1x1)，之后通过顶点操作进行塑形
@@ -77,19 +83,18 @@ export class KeycapGenerator {
 
         // 4. 顶部内凹 (Dish)
         // 只有顶部的顶点受到显著影响
-        if (normalizedY > 0.8) {
+        if (normalizedY > 0.9) { // 只影响最顶部的面
              // 计算到中心的距离
              const distXY = Math.sqrt(finalX * finalX + finalZ * finalZ);
              
              // 简单的球形内凹模拟
-             // y偏移 = 1 - Math.cos(angle) * scale
-             // 或者用抛物线：k * r^2
-             const sag = (distXY / (Math.max(bottomWidth, bottomDepth) / 2)) ** 2 * dishDepth;
+             const maxDim = Math.max(bottomWidth, bottomDepth);
+             // 限制一下 sag 的范围，避免边缘过度下陷
+             const normalizedDist = Math.min(distXY / (maxDim / 2), 1.0);
              
-             // 混合权重：底部不受影响，顶部全受影响
-             const weight = Math.pow(normalizedY, 8); // 这种混合确保侧壁不会被扭曲太多
+             const sag = Math.pow(normalizedDist, 2) * dishDepth;
              
-             currentH -= sag * weight;
+             currentH -= sag;
         }
 
         pos.setXYZ(i, finalX, currentH, finalZ);
@@ -109,6 +114,48 @@ export class KeycapGenerator {
     mesh.receiveShadow = true;
     
     return mesh;
+  }
+
+  _subtractInnerBody(outerMesh, width, height, thickness) {
+      outerMesh.updateMatrix();
+      
+      // 简单的内胆生成：克隆外壳并缩小
+      // 缩放中心要在底部中心，所以需要平移
+      // 或者更简单的：缩放比例
+      const scaleX = (width - thickness * 2) / width;
+      // 高度方向：保留顶部厚度。 innerHeight = height - thickness
+      const scaleY = (height - thickness) / height;
+
+      // 克隆并变换
+      const innerMesh = outerMesh.clone();
+      
+      // 注意：直接 scale 会导致圆角也变形，但对于内壁来说通常可以接受
+      innerMesh.scale.set(scaleX, scaleY, scaleX);
+      
+      // 位置校正：因为原点是在几何体中心，scale后底部会浮空。
+      // 我们之前在 _createBaseMesh 里把 y 映射到了 0~height。
+      // 所以原来的 y 原点是 0吗？看代码：pos.getY(i) 是 -0.5~0.5，然后 normalizedY = y+0.5 (0~1)。
+      // 最后的 currentH 是 0~height。
+      // 所以几何体底面在 y=0。
+      // 直接 Scale，origin (0,0,0) 就是底面中心。
+      // 所以 innerMesh 底部依然在 0，高度变矮了。这会导致底部变薄成0。
+      // 我们需要内胆底部往上抬一点吗？
+      // 一般键帽是底部开口的，所以内胆底部应该和外壳底部平齐(或者更低以确保切穿)。
+      // 这里的 scaleY 会让顶部变低 (height * scaleY)。
+      // 外壳顶是 height。内胆顶是 height - thickness。
+      // 所以这个 scaleY 是正确的。
+      
+      // 执行布尔运算
+      const outerCSG = CSG.fromMesh(outerMesh);
+      const innerCSG = CSG.fromMesh(innerMesh);
+      
+      const resultCSG = outerCSG.subtract(innerCSG);
+      
+      const resultMesh = CSG.toMesh(resultCSG, outerMesh.matrix, outerMesh.material);
+      resultMesh.castShadow = true;
+      resultMesh.receiveShadow = true;
+      
+      return resultMesh;
   }
 
   _subtractStem(keycapMesh) {
@@ -150,10 +197,31 @@ export class KeycapGenerator {
     resultMesh.castShadow = true;
     resultMesh.receiveShadow = true;
     
-    // CSG 丢失了原始 UV 和 法线优化，可能需要处理
+    // TODO: CSG 丢失了原始 UV 和 法线优化，可能需要处理
     // 简单的 StandardMaterial 通常没问题
     
     return resultMesh;
+  }
+
+  // 辅助方法：获取十字轴的几何体用于显示虚线
+  getStemGeometry() {
+    const crossSize = 4.1; 
+    const crossThick = 1.35; 
+    const stemDepth = 4.0; // 稍微长一点
+    
+    const geometry = new THREE.BufferGeometry();
+    
+    // 简单构建一个十字的线框点集
+    // 横条
+    const hBox = new THREE.BoxGeometry(crossSize, stemDepth, crossThick);
+    // 竖条
+    const vBox = new THREE.BoxGeometry(crossThick, stemDepth, crossSize);
+    
+    // 这里的合并比较麻烦，我们可以返回一个 Group 包含两个 Mesh，或者 simply 返回一个十字形状的 Mesh
+    // 为了简单，我们只返回两个 Box 的组合
+    // 或者直接在 Scene 里渲染两个 Box
+    
+    return { hBox, vBox, stemDepth };
   }
 }
 

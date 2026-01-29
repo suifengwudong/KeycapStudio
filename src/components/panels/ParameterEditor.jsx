@@ -53,8 +53,8 @@ export default function ParameterEditor() {
       {/* 圆角半径 */}
       <Slider
         label="顶部圆角"
-        min={0}
-        max={2}
+        min={0.1}
+        max={3.0}
         step={0.1}
         value={params.topRadius}
         onChange={(value) => updateParams({ topRadius: value })}
@@ -64,8 +64,8 @@ export default function ParameterEditor() {
       {/* 壁厚 */}
       <Slider
         label="壁厚"
-        min={1}
-        max={3}
+        min={0.5}
+        max={4.0}
         step={0.1}
         value={params.wallThickness}
         onChange={(value) => updateParams({ wallThickness: value })}
