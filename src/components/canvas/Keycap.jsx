@@ -11,24 +11,26 @@ export default function Keycap({
   hasStem = true
 }) {
   // 生成键帽几何体
-  const geometry = useMemo(() => {
+  const { geometry, material: generatedMaterial } = useMemo(() => {
     const generator = new KeycapGenerator();
     const mesh = generator.generate({
       profile,
       size,
-      hasStem
+      hasStem,
     });
-    return mesh.geometry;
+    return {
+      geometry: mesh.geometry,
+      material: mesh.material 
+    };
   }, [profile, size, hasStem]);
 
-  // 材质
+  // 材质 (颜色覆盖)
   const material = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: color,
-      roughness: 0.4,
-      metalness: 0.1
-    });
-  }, [color]);
+    // 如果生成器返回了标准材质，我们克隆并只修改颜色
+    const mat = generatedMaterial.clone();
+    mat.color.set(color);
+    return mat;
+  }, [color, generatedMaterial]);
 
   return (
     <group>
