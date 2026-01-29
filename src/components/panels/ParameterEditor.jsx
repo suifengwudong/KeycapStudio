@@ -2,6 +2,7 @@ import React from 'react';
 import { useKeycapStore } from '../../store/keycapStore';
 import Slider from '../common/Slider';
 import ColorPicker from '../common/ColorPicker';
+import PerformanceSettings from './PerformanceSettings';
 import { PROFILES, KEYCAP_SIZES } from '../../constants/profiles';
 
 export default function ParameterEditor() {
