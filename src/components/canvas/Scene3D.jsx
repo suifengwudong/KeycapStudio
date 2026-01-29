@@ -25,6 +25,7 @@ export default function Scene3D() {
         {/* 舞台灯光 */}
         <Stage
           intensity={0.5}
+          environment="city"
           shadows="contact"
           adjustCamera={false}
         >

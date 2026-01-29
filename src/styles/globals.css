@@ -4,8 +4,12 @@
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background-color: #111827; /* bg-gray-900 matching App background */
+}
+
+#root {
+  width: 100%;
+  height: 100%;
 }
