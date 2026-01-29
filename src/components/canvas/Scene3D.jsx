@@ -2,51 +2,115 @@ import React, { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { 
   OrbitControls, 
-  Stage, 
-  Grid, 
-  Environment 
+  Environment,
+  ContactShadows,
+  Lightformer,
+  Grid
 } from '@react-three/drei';
+import * as THREE from 'three';
 import Keycap from './Keycap';
 import { useKeycapStore } from '../../store/keycapStore';
+import { PerformanceMonitor } from '../common/PerformanceMonitor';
 
 export default function Scene3D() {
   const params = useKeycapStore(state => state.params);
 
   return (
     <Canvas
-      camera={{ position: [30, 30, 30], fov: 50 }}
+      camera={{ 
+        position: [35, 35, 35], 
+        fov: 45,
+        near: 0.1,
+        far: 1000
+      }}
       shadows
-      gl={{ preserveDrawingBuffer: true }}
+      dpr={[1, 2]}  // 设备像素比（移动端 1x，桌面 2x）
+      gl={{ 
+        preserveDrawingBuffer: true,
+        antialias: true,
+        alpha: false,
+        //  启用高质量渲染
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.25,
+        outputColorSpace: THREE.SRGBColorSpace
+      }}
     >
       <Suspense fallback={null}>
-        {/* 环境光照 */}
-        <Environment preset="studio" />
-        
-        {/* 舞台灯光 */}
-        <Stage
-          intensity={0.5}
-          environment="city"
-          shadows="contact"
-          adjustCamera={false}
+        {/*  专业级环境光 */}
+        <Environment 
+          preset="studio" 
+          background={false}
+          blur={0.8}
         >
-          {/* 键帽模型 */}
-          <Keycap {...params} />
-        </Stage>
+          {/* 添加自定义光源形状 */}
+          <group rotation={[-Math.PI / 3, 0, 0]}>
+            <Lightformer
+              form="ring"
+              intensity={3}
+              rotation-x={Math.PI / 2}
+              position={[0, 5, -9]}
+              scale={2}
+            />
+            <Lightformer
+              form="rect"
+              intensity={2}
+              rotation-y={Math.PI / 2}
+              position={[-5, 1, -1]}
+              scale={[20, 0.1, 1]}
+            />
+            <Lightformer
+              form="rect"
+              intensity={2}
+              rotation-y={-Math.PI / 2}
+              position={[10, 1, 0]}
+              scale={[20, 1, 1]}
+            />
+          </group>
+        </Environment>
         
-        {/* 网格地面 */}
-        <Grid 
-          args={[100, 100]} 
-          cellSize={5} 
-          cellColor="#6f6f6f"
-          sectionColor="#9d4b4b"
+        {/*  真实接触阴影 */}
+        <ContactShadows
+          position={[0, -0.05, 0]}
+          opacity={0.4}
+          scale={30}
+          blur={2.5}
+          far={4}
+          resolution={256}
+          color="#000000"
         />
         
-        {/* 相机控制 */}
+        {/* 键帽模型 */}
+        <Keycap {...params} />
+        
+        {/*  参考网格 */}
+        <Grid 
+          args={[100, 100]}
+          cellSize={5}
+          cellThickness={0.5}
+          cellColor="#6f6f6f"
+          sectionSize={25}
+          sectionThickness={1}
+          sectionColor="#9d4b4b"
+          fadeDistance={400}
+          fadeStrength={1}
+          followCamera={false}
+          infiniteGrid
+        />
+        
+        {/*  优化的相机控制 */}
         <OrbitControls 
           makeDefault
           minPolarAngle={0}
           maxPolarAngle={Math.PI / 2}
+          minDistance={10}
+          maxDistance={100}
+          enableDamping
+          dampingFactor={0.05}
+          rotateSpeed={0.5}
+          panSpeed={0.5}
+          zoomSpeed={0.8}
         />
+        <PerformanceMonitor />
       </Suspense>
     </Canvas>
   );

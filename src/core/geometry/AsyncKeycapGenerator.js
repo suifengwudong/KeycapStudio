@@ -1,75 +1,99 @@
-import { KeycapGenerator } from './KeycapGenerator';
+import { OptimizedKeycapGenerator } from './OptimizedKeycapGenerator';
 
 /**
  * 异步键帽生成器
- * 使用 Promise 包装，允许在生成过程中不阻塞渲染
+ * 使用优化的生成器 + LRU 缓存
  */
 export class AsyncKeycapGenerator {
   constructor() {
-    this.generator = new KeycapGenerator();
-    this.cache = new Map(); // 缓存已生成的几何体
+    this.generator = new OptimizedKeycapGenerator();
+    this.cache = new Map();
+    this.maxCacheSize = 15; // 最多缓存15个几何体
   }
 
   /**
    * 异步生成键帽
-   * @returns {Promise<{geometry, material}>}
    */
   async generateAsync(params) {
-    // 生成缓存键
     const cacheKey = this._getCacheKey(params);
-
-    // ✅ 添加调试日志
-    console.log('🔧 生成键帽参数:', {
-        profile: params.profile,
-        size: params.size,
-        topRadius: params.topRadius,
-        wallThickness: params.wallThickness,
-        hasStem: params.hasStem,
-        cacheKey
-    });
     
     // 检查缓存
     if (this.cache.has(cacheKey)) {
-      console.log('✅ 使用缓存');
+      console.log(' 使用缓存:', cacheKey);
       return this.cache.get(cacheKey);
     }
 
-    // 模拟异步操作（将计算放到下一个事件循环）
+    console.log(' 生成新几何体:', cacheKey);
+
+    // 使用 requestIdleCallback 或 setTimeout 让出主线程
     return new Promise((resolve) => {
-      // 使用 setTimeout 让出主线程，以便 UI 有机会先渲染"加载中"状态
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         try {
-            const mesh = this.generator.generate(params);
-            
-            // 为了安全传递，我们提取 geometry 和 material
-            // 注意：Geometry 是不能跨线程的（如果我们以后用Worker），但在这里是在主线程
-            const result = {
-              geometry: mesh.geometry,
-              material: mesh.material,
-              stemHelp: this.generator.getStemGeometry() // 同时也获取辅助线数据
-            };
-            
-            // 缓存结果 (简单的LRU策略可以在这里实现，目前先无限制)
-            this.cache.set(cacheKey, result);
-            console.log('✅ 生成完成并缓存');
-            
-            resolve(result);
-        } catch (e) {
-            console.error("❌ 几何体生成失败", e);
-            resolve(null);
+          const mesh = this.generator.generate(params);
+          
+          const result = {
+            geometry: mesh.geometry,
+            material: mesh.material,
+            stemHelp: this.generator.getStemGeometry()
+          };
+          
+          // 缓存管理（LRU）
+          this._addToCache(cacheKey, result);
+          
+          resolve(result);
+        } catch (error) {
+          console.error(' 几何体生成失败:', error);
+          resolve(null);
         }
-      }, 50); // 稍微延迟一点，确保React有时间渲染Loading状态
+      }, 10); // 延迟 10ms 确保 UI 先更新
     });
   }
 
-  _getCacheKey(params) {
-    // 只基于影响几何体的参数生成缓存键
-    const { profile, size, hasStem, topRadius, wallThickness } = params;
-    // 注意：浮点数可能会有精度问题，实际项目中可能需要通过 toFixed 处理
-    return `${profile}-${size}-${hasStem}-${topRadius}-${wallThickness}`;
+  /**
+   * 添加到缓存（LRU 策略）
+   */
+  _addToCache(key, value) {
+    // 如果已存在，先删除（确保 LRU 顺序）
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    }
+
+    // 添加新项
+    this.cache.set(key, value);
+
+    // 超出容量时删除最旧的
+    if (this.cache.size > this.maxCacheSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+      console.log(' 清理缓存:', firstKey);
+    }
   }
 
+  /**
+   * 生成缓存键
+   */
+  _getCacheKey(params) {
+    const { profile, size, hasStem, topRadius, wallThickness } = params;
+    
+    // 使用 toFixed 避免浮点数精度问题
+    const radius = typeof topRadius === 'number' ? topRadius.toFixed(2) : topRadius;
+    const thickness = typeof wallThickness === 'number' ? wallThickness.toFixed(2) : wallThickness;
+    
+    return `${profile}-${size}-${hasStem}-${radius}-${thickness}`;
+  }
+
+  /**
+   * 清空缓存
+   */
   clearCache() {
     this.cache.clear();
+    console.log(' 缓存已清空');
+  }
+
+  /**
+   * 设置性能模式
+   */
+  setPerformanceMode(mode) {
+    this.generator.setPerformanceMode(mode);
   }
 }
