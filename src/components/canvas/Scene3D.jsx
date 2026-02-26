@@ -8,9 +8,10 @@ import {
   Grid
 } from '@react-three/drei';
 import * as THREE from 'three';
-import Keycap from './Keycap';
 import { useKeycapStore } from '../../store/keycapStore';
+import { useSceneStore } from '../../store/sceneStore';
 import { PerformanceMonitor } from '../common/PerformanceMonitor';
+import SceneNodeRenderer from './SceneNodeRenderer';
 
 function PerformanceOverlay() {
   const { fps, frameTime } = useKeycapStore(state => state.performanceStats);
@@ -23,7 +24,7 @@ function PerformanceOverlay() {
 }
 
 export default function Scene3D() {
-  const params = useKeycapStore(state => state.params);
+  const scene = useSceneStore(s => s.scene);
 
   return (
     <div className="w-full h-full relative">
@@ -90,8 +91,8 @@ export default function Scene3D() {
             color="#000000"
           />
           
-          {/* 键帽模型 */}
-          <Keycap {...params} />
+          {/* Scene document nodes */}
+          <SceneNodeRenderer scene={scene} />
           
           {/*  参考网格 */}
           <Grid 

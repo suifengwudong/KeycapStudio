@@ -3,13 +3,22 @@
  *
  * Buttons: New | Open | Save | Export PNG | Export SVG | Undo | Redo
  * Plus mode toggle: 2D Design ↔ 3D Preview
+ *
+ * 3D mode adds: Open Scene | Save Scene | Export STL
  */
 
 import React, { useState, useCallback } from 'react';
 import { useProjectStore, readAutosave } from '../../store/projectStore.js';
+import { useSceneStore } from '../../store/sceneStore.js';
 import { openProjectFile, saveProjectFile } from '../../core/io/projectIO.js';
 import { exportPNG } from '../../core/export/PNGExporter.js';
 import { exportSVG } from '../../core/export/SVGExporter.js';
+import {
+  serialiseScene,
+  deserialiseScene,
+  createDefaultScene,
+} from '../../core/model/sceneDocument.js';
+import { exportSceneSTL } from '../../core/csg/csgEvaluator.js';
 
 function ToolbarBtn({ onClick, disabled, children, title, variant = 'default' }) {
   const base  = 'px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed';
@@ -36,7 +45,12 @@ export default function DesignHeader({ mode, setMode }) {
   const setProject  = useProjectStore(s => s.setProject);
   const markSaved   = useProjectStore(s => s.markSaved);
 
+  const scene    = useSceneStore(s => s.scene);
+  const setScene = useSceneStore(s => s.setScene);
+
   const [exportOpen, setExportOpen] = useState(false);
+
+  // ── 2D handlers ────────────────────────────────────────────────────────────
 
   const handleNew = useCallback(() => {
     if (isDirty && !window.confirm('Discard unsaved changes?')) return;
@@ -68,6 +82,50 @@ export default function DesignHeader({ mode, setMode }) {
     setExportOpen(false);
   }, [project]);
 
+  // ── 3D handlers ────────────────────────────────────────────────────────────
+
+  const handleNewScene = useCallback(() => {
+    if (!window.confirm('Discard current 3D scene?')) return;
+    setScene(createDefaultScene());
+  }, [setScene]);
+
+  const handleOpenScene = useCallback(async () => {
+    try {
+      const text = await new Promise((resolve, reject) => {
+        const input = document.createElement('input');
+        input.type   = 'file';
+        input.accept = '.json,.kcs3d.json';
+        input.onchange = () => {
+          const file = input.files?.[0];
+          if (!file) return reject(new Error('No file selected'));
+          const reader = new FileReader();
+          reader.onload = e => resolve(e.target.result);
+          reader.onerror = () => reject(new Error('Read error'));
+          reader.readAsText(file);
+        };
+        input.click();
+      });
+      const loaded = deserialiseScene(text);
+      setScene(loaded);
+    } catch (e) {
+      if (e.message !== 'No file selected') alert(`Open scene failed: ${e.message}`);
+    }
+  }, [setScene]);
+
+  const handleSaveScene = useCallback(() => {
+    const json = serialiseScene(scene);
+    const blob = new Blob([json], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href     = URL.createObjectURL(blob);
+    link.download = `${scene.name ?? 'scene'}.kcs3d.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }, [scene]);
+
+  const handleExportSTL = useCallback(() => {
+    exportSceneSTL(scene, `${scene.name ?? 'scene'}.stl`);
+  }, [scene]);
+
   return (
     <header className="bg-gray-800 border-b border-gray-700 px-4 py-2 flex items-center gap-2 flex-wrap">
       {/* Logo */}
@@ -76,62 +134,61 @@ export default function DesignHeader({ mode, setMode }) {
       {/* Divider */}
       <span className="w-px h-5 bg-gray-600" />
 
-      {/* File ops */}
-      <ToolbarBtn onClick={handleNew} title="New project (Ctrl+N)">New</ToolbarBtn>
-      <ToolbarBtn onClick={handleOpen} title="Open .keycap file">Open</ToolbarBtn>
-      <ToolbarBtn
-        onClick={handleSave}
-        variant={isDirty ? 'primary' : 'default'}
-        title="Save .keycap file"
-      >
-        {isDirty ? '● Save' : 'Save'}
-      </ToolbarBtn>
+      {mode === '2d' ? (
+        <>
+          {/* 2D File ops */}
+          <ToolbarBtn onClick={handleNew}  title="New project (Ctrl+N)">New</ToolbarBtn>
+          <ToolbarBtn onClick={handleOpen} title="Open .keycap file">Open</ToolbarBtn>
+          <ToolbarBtn
+            onClick={handleSave}
+            variant={isDirty ? 'primary' : 'default'}
+            title="Save .keycap file"
+          >
+            {isDirty ? '● Save' : 'Save'}
+          </ToolbarBtn>
 
-      {/* Divider */}
-      <span className="w-px h-5 bg-gray-600" />
+          {/* Divider */}
+          <span className="w-px h-5 bg-gray-600" />
 
-      {/* Export dropdown */}
-      <div className="relative">
-        <ToolbarBtn onClick={() => setExportOpen(v => !v)} title="Export">
-          Export ▾
-        </ToolbarBtn>
-        {exportOpen && (
-          <div className="absolute top-full left-0 mt-1 bg-gray-700 border border-gray-600 rounded shadow-lg z-50 min-w-max text-xs">
-            <button
-              className="block w-full text-left px-3 py-2 hover:bg-gray-600"
-              onClick={() => handleExportPNG(2, false)}
-            >PNG 2× (opaque)</button>
-            <button
-              className="block w-full text-left px-3 py-2 hover:bg-gray-600"
-              onClick={() => handleExportPNG(4, false)}
-            >PNG 4× (opaque)</button>
-            <button
-              className="block w-full text-left px-3 py-2 hover:bg-gray-600"
-              onClick={() => handleExportPNG(2, true)}
-            >PNG 2× (transparent bg)</button>
-            <button
-              className="block w-full text-left px-3 py-2 hover:bg-gray-600"
-              onClick={() => handleExportPNG(4, true)}
-            >PNG 4× (transparent bg)</button>
-            <div className="border-t border-gray-600 my-1" />
-            <button
-              className="block w-full text-left px-3 py-2 hover:bg-gray-600"
-              onClick={() => handleExportSVG(false)}
-            >SVG (opaque)</button>
-            <button
-              className="block w-full text-left px-3 py-2 hover:bg-gray-600"
-              onClick={() => handleExportSVG(true)}
-            >SVG (transparent bg)</button>
+          {/* Export dropdown */}
+          <div className="relative">
+            <ToolbarBtn onClick={() => setExportOpen(v => !v)} title="Export">
+              Export ▾
+            </ToolbarBtn>
+            {exportOpen && (
+              <div className="absolute top-full left-0 mt-1 bg-gray-700 border border-gray-600 rounded shadow-lg z-50 min-w-max text-xs">
+                <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(2, false)}>PNG 2× (opaque)</button>
+                <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(4, false)}>PNG 4× (opaque)</button>
+                <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(2, true)}>PNG 2× (transparent bg)</button>
+                <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(4, true)}>PNG 4× (transparent bg)</button>
+                <div className="border-t border-gray-600 my-1" />
+                <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportSVG(false)}>SVG (opaque)</button>
+                <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportSVG(true)}>SVG (transparent bg)</button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Divider */}
-      <span className="w-px h-5 bg-gray-600" />
+          {/* Divider */}
+          <span className="w-px h-5 bg-gray-600" />
 
-      {/* Undo / Redo */}
-      <ToolbarBtn onClick={undo} disabled={past.length === 0} title="Undo (Ctrl+Z)">↩ Undo</ToolbarBtn>
-      <ToolbarBtn onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Y)">↪ Redo</ToolbarBtn>
+          {/* Undo / Redo */}
+          <ToolbarBtn onClick={undo} disabled={past.length === 0} title="Undo (Ctrl+Z)">↩ Undo</ToolbarBtn>
+          <ToolbarBtn onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Y)">↪ Redo</ToolbarBtn>
+        </>
+      ) : (
+        <>
+          {/* 3D File ops */}
+          <ToolbarBtn onClick={handleNewScene}  title="New 3D scene">New Scene</ToolbarBtn>
+          <ToolbarBtn onClick={handleOpenScene} title="Open .kcs3d.json scene file">Open Scene</ToolbarBtn>
+          <ToolbarBtn onClick={handleSaveScene} title="Save scene as .kcs3d.json">Save Scene</ToolbarBtn>
+
+          {/* Divider */}
+          <span className="w-px h-5 bg-gray-600" />
+
+          {/* Export STL */}
+          <ToolbarBtn onClick={handleExportSTL} variant="primary" title="Export scene as binary STL">Export STL</ToolbarBtn>
+        </>
+      )}
 
       {/* Spacer */}
       <span className="flex-1" />
@@ -145,7 +202,7 @@ export default function DesignHeader({ mode, setMode }) {
         <button
           className={`px-3 py-1 ${mode === '3d' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
           onClick={() => setMode('3d')}
-        >3D Preview</button>
+        >3D Modeling</button>
       </div>
     </header>
   );

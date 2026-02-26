@@ -1,6 +1,284 @@
 # KeycapStudio
 
-> Design keycap legends in 2D, export production-ready PNG / SVG, and generate Cherry MX-compatible STL files for 3D printing — all in one browser-based tool.
+> Design keycap legends in 2D, export production-ready PNG / SVG, and compose 3D models with a node-based CSG tree for STL printing — all in one browser-based tool.
+
+---
+
+## V1 – 2D Design Tool
+
+### Quick start
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. The app opens in **2D Design** mode by default.
+
+### Workflow
+
+```
+New / Open  →  Set preset + style  →  Edit legends  →  Position  →  Export
+```
+
+1. **New / Open project** — use the toolbar to create a fresh keycap or load an existing `.keycap` file.
+2. **Choose a size preset** — Inspector → *Size Preset*: `1u`, `1.25u`, `1.5u`, `2u`, `Shift (2.25u)`, `Enter (2.25u)`.
+3. **Set style** — background colour, outline toggle + colour + thickness slider.
+4. **Edit legends** — four legend slots: *Main*, *Top-Left*, *Bottom-Right*, *Left*.  
+   Each can be independently enabled/disabled with its own text, colour, font, and font size.
+5. **Position legends** — drag legend handles on the canvas, use **Arrow keys** (1 px nudge) or **Shift+Arrows** (8 px nudge), or type exact X/Y fractions in the inspector.  
+   Click *Center main legend* to snap the main legend to the keycap centre.
+6. **Zoom** — scroll wheel on canvas, or use the `+` / `−` / `Reset` controls in the canvas corner.
+7. **Save** — *Save* button downloads a `.keycap` JSON file (see [File Format](#file-format)).
+8. **Export** — *Export ▾* dropdown:
+   - **PNG 2× / 4×** (opaque or transparent background)
+   - **SVG** (opaque or transparent background)
+
+### Undo / Redo
+
+Full undo/redo history (up to 100 steps) for all edits: text, position, colours, preset changes.  
+Click **↩ Undo** / **↪ Redo** in the toolbar, or use `Ctrl+Z` / `Ctrl+Y`.
+
+### Autosave & Crash Recovery
+
+The app autosaves your project to `localStorage` every 30 seconds.  
+On the next launch, if an unsaved autosave is detected, you will be offered the option to restore it.
+
+---
+
+## 3D Modeling Mode
+
+Switch to **3D Modeling** mode with the toggle in the top-right corner.
+
+### Layout
+
+| Panel | Description |
+|-------|-------------|
+| **Outliner** (left) | Node tree — add, select, and delete nodes |
+| **Viewport** (centre) | Interactive 3D preview (orbit/pan/zoom) |
+| **Inspector** (right) | Edit the selected node's parameters and transform |
+
+### Workflow
+
+```
+Add nodes  →  Edit params  →  Arrange  →  Save Scene  →  Export STL
+```
+
+1. **Add nodes** — click the buttons in the Outliner toolbar:
+   - **+ Keycap** — Cherry MX-compatible keycap (wraps the existing generator)
+   - **+ Box / Cyl / Sphere** — primitive shapes (mm units)
+   - **+ Bool** — Boolean subtraction node (drag children into it)
+   - **+ Group** — group of nodes
+2. **Edit parameters** — select a node and edit in the Inspector: dimensions, colour, profile/size (keycaps), boolean operation type.
+3. **Transform** — set Position and Rotation directly in the Inspector (mm / radians).
+4. **Save Scene** — downloads a `.kcs3d.json` file.
+5. **Open Scene** — load a previously saved `.kcs3d.json` file.
+6. **Export STL** — runs the full CSG export pipeline (via `three-csg-ts`) and downloads a binary STL.
+
+### Pipelines
+
+| Pipeline | Trigger | Behaviour |
+|----------|---------|-----------|
+| **Preview** | Real-time in viewport | No CSG; Boolean nodes show children overlaid (second operand ghosted) |
+| **Export** | *Export STL* button | Full CSG evaluation; produces watertight merged mesh |
+
+### Performance Notes
+
+- The preview pipeline never runs CSG, so it stays fast regardless of tree depth.
+- Keycap nodes use the same LRU-cached async generator as the original 3D preview.
+- CSG export is synchronous on the main thread; complex scenes with many Boolean ops may take a few seconds.
+
+---
+
+## File Formats
+
+### `.keycap` — 2D legend project
+
+Plain UTF-8 JSON; produced/consumed by the 2D Design mode.
+
+```json
+{
+  "version": 1,
+  "keycap": { "preset": "1u", "bgColor": "#e0e0e0", "outlineEnabled": true, ... },
+  "legends": {
+    "main":        { "enabled": true,  "text": "A",  "x": 0, "y": 0, "font": "Arial", "fontSize": 24, "color": "#111111" },
+    "topLeft":     { "enabled": false, "text": "",   "x": -0.3, "y": -0.3, ... },
+    "bottomRight": { "enabled": false, "text": "",   "x":  0.3, "y":  0.3, ... },
+    "left":        { "enabled": false, "text": "",   "x": -0.3, "y":  0,   ... }
+  }
+}
+```
+
+### `.kcs3d.json` — 3D scene document
+
+Plain UTF-8 JSON; produced/consumed by the 3D Modeling mode.  
+Units are **millimetres** throughout.
+
+```json
+{
+  "version": 1,
+  "format": "kcs3d",
+  "name": "My Scene",
+  "root": {
+    "id": "root",
+    "type": "Group",
+    "name": "Scene",
+    "children": [
+      {
+        "id": "keycap-1",
+        "type": "KeycapTemplate",
+        "name": "Main Keycap",
+        "params": {
+          "profile": "Cherry", "size": "1u", "color": "#2563eb",
+          "hasStem": true, "topRadius": 0.5, "wallThickness": 1.5
+        },
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0]
+      },
+      {
+        "id": "bool-1",
+        "type": "Boolean",
+        "name": "Boolean (subtract)",
+        "operation": "subtract",
+        "children": [
+          {
+            "id": "box-1", "type": "Primitive", "name": "Box",
+            "primitive": "box",
+            "params": { "width": 20, "height": 10, "depth": 20 },
+            "material": { "color": "#6b7280" },
+            "position": [0, 0, 0], "rotation": [0, 0, 0]
+          },
+          {
+            "id": "cyl-1", "type": "Primitive", "name": "Drill",
+            "primitive": "cylinder",
+            "params": { "radiusTop": 4, "radiusBottom": 4, "height": 15, "radialSegments": 32 },
+            "material": { "color": "#ef4444" },
+            "position": [0, 0, 0], "rotation": [0, 0, 0]
+          }
+        ],
+        "position": [-30, 0, 0], "rotation": [0, 0, 0]
+      }
+    ],
+    "position": [0, 0, 0],
+    "rotation": [0, 0, 0]
+  }
+}
+```
+
+#### Node types
+
+| `type` | Description | Extra fields |
+|--------|-------------|--------------|
+| `KeycapTemplate` | Cherry MX keycap (uses generator) | `params`: profile, size, color, hasStem, topRadius, wallThickness |
+| `Primitive` | Box / Cylinder / Sphere | `primitive`, `params`, `material.color` |
+| `Boolean` | CSG union / subtract / intersect | `operation`, `children[]` |
+| `Group` | Container | `children[]` |
+
+All nodes share `id`, `name`, `position [x,y,z]`, `rotation [x,y,z]` (radians).
+
+A complete example is in [`examples/example.kcs3d.json`](examples/example.kcs3d.json).
+
+---
+
+## Export Behaviour (2D)
+
+| Format | Scale | Dimensions (1u) |
+|---|---|---|
+| PNG 2× | ×2 | 108 × 108 px |
+| PNG 4× | ×4 | 216 × 216 px |
+| SVG | ×1 (vector) | 54 × 54 px viewBox |
+
+---
+
+## Running Tests
+
+```bash
+npm test
+```
+
+Tests cover:
+
+| File | Coverage |
+|------|----------|
+| `projectModel.test.js` | 2D model serialisation, presets |
+| `sceneDocument.test.js` | 3D scene model, node factories, tree helpers, round-trip |
+| `export.test.js` | Export dimension calculations, SVG generation |
+| `projectStore.test.js` | Undo/redo stack, autosave |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| UI framework | React 18 + Tailwind CSS |
+| 2D preview | HTML5 Canvas |
+| 3D rendering | Three.js + @react-three/fiber + @react-three/drei |
+| CSG boolean ops | three-csg-ts |
+| State management | Zustand |
+| Testing | Vitest |
+| Build tool | Vite |
+
+---
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── canvas/
+│   │   ├── KeycapCanvas2D.jsx        # 2D canvas
+│   │   ├── Scene3D.jsx               # 3D viewport (uses scene store)
+│   │   ├── Keycap.jsx                # Single keycap mesh (async gen)
+│   │   └── SceneNodeRenderer.jsx     # Renders full scene document tree
+│   ├── layout/
+│   │   └── DesignHeader.jsx          # Toolbar (mode-aware: 2D / 3D actions)
+│   └── panels/
+│       ├── InspectorPanel.jsx        # 2D inspector
+│       ├── Outliner.jsx              # 3D node tree
+│       └── NodeInspector.jsx         # 3D node parameter editor
+├── constants/
+│   ├── profiles.js                   # Keycap profile + size data
+│   └── cherry.js                     # Cherry MX stem dimensions
+├── core/
+│   ├── csg/
+│   │   └── csgEvaluator.js           # Preview + export pipelines
+│   ├── export/
+│   │   ├── PNGExporter.js
+│   │   ├── SVGExporter.js
+│   │   ├── STLExporter.js
+│   │   └── export.test.js
+│   ├── geometry/
+│   │   ├── OptimizedKeycapGenerator.js
+│   │   └── AsyncKeycapGenerator.js
+│   ├── io/
+│   │   └── projectIO.js
+│   └── model/
+│       ├── projectModel.js           # 2D .keycap format
+│       ├── projectModel.test.js
+│       ├── sceneDocument.js          # 3D .kcs3d.json format
+│       └── sceneDocument.test.js
+└── store/
+    ├── projectStore.js               # 2D Zustand store (undo/redo)
+    ├── projectStore.test.js
+    ├── keycapStore.js                # Keycap params + perf stats
+    └── sceneStore.js                 # 3D scene Zustand store
+examples/
+├── demo.keycap                       # Sample 2D project
+└── example.kcs3d.json               # Sample 3D scene document
+```
+
+---
+
+## Milestones
+
+- [x] **v0.1** Basic geometry (Cherry 1u, stem hole)
+- [x] **v0.2** Parametric UI + LRU cache
+- [x] **v0.3** STL export + README
+- [x] **v0.4** Preview/export pipeline split (no-CSG preview)
+- [x] **v1.0** 2D design tool: presets, legends, PNG/SVG, `.keycap` format, undo/redo, autosave
+- [x] **v1.1** 3D modeling: node-based CSG tree, Outliner, Inspector, `.kcs3d.json` format, STL export
+
 
 ---
 
