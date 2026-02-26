@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "format": "kcs3d",
+  "name": "Keycap + Accent Sphere",
+  "root": {
+    "id": "root",
+    "type": "Group",
+    "name": "Scene",
+    "children": [
+      {
+        "id": "keycap-main",
+        "type": "KeycapTemplate",
+        "name": "Main Keycap (Cherry 1u)",
+        "params": {
+          "profile": "Cherry",
+          "size": "1u",
+          "color": "#2563eb",
+          "hasStem": true,
+          "topRadius": 0.5,
+          "wallThickness": 1.5
+        },
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0]
+      },
+      {
+        "id": "keycap-wide",
+        "type": "KeycapTemplate",
+        "name": "Wide Keycap (Cherry 1.5u)",
+        "params": {
+          "profile": "Cherry",
+          "size": "1.5u",
+          "color": "#dc2626",
+          "hasStem": true,
+          "topRadius": 0.5,
+          "wallThickness": 1.5
+        },
+        "position": [22, 0, 0],
+        "rotation": [0, 0, 0]
+      },
+      {
+        "id": "bool-subtract",
+        "type": "Boolean",
+        "name": "Box with Cylinder Hole",
+        "operation": "subtract",
+        "children": [
+          {
+            "id": "base-box",
+            "type": "Primitive",
+            "name": "Base Box",
+            "primitive": "box",
+            "params": {
+              "width": 20,
+              "height": 10,
+              "depth": 20
+            },
+            "material": {
+              "color": "#6b7280"
+            },
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0]
+          },
+          {
+            "id": "drill-cyl",
+            "type": "Primitive",
+            "name": "Drill Cylinder",
+            "primitive": "cylinder",
+            "params": {
+              "radiusTop": 4,
+              "radiusBottom": 4,
+              "height": 15,
+              "radialSegments": 32
+            },
+            "material": {
+              "color": "#ef4444"
+            },
+            "position": [0, 0, 0],
+            "rotation": [0, 0, 0]
+          }
+        ],
+        "position": [-30, 0, 0],
+        "rotation": [0, 0, 0]
+      },
+      {
+        "id": "sphere-accent",
+        "type": "Primitive",
+        "name": "Accent Sphere",
+        "primitive": "sphere",
+        "params": {
+          "radius": 5,
+          "widthSegments": 32,
+          "heightSegments": 16
+        },
+        "material": {
+          "color": "#f59e0b"
+        },
+        "position": [0, 20, 0],
+        "rotation": [0, 0, 0]
+      }
+    ],
+    "position": [0, 0, 0],
+    "rotation": [0, 0, 0]
+  }
+}
