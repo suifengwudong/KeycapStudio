@@ -1,6 +1,6 @@
 # KeycapStudio
 
-> **小而精**的 Cherry 1u 参数化键帽生成器 — 可在浏览器中实时预览并导出 STL。
+> 在浏览器中实时预览并导出 STL。**3D 预览与 STL 导出完全解耦：调参时仅运行轻量外壳计算，CSG 仅在点击 Export STL 时触发。**
 
 ---
 
@@ -32,6 +32,7 @@ KeycapStudio 是一个**单一用途、轻量级**的 3D 键帽参数化生成�
 ## 功能范围
 
 ### 已实现
+- ✅ **预览 / 导出解耦**：调参时仅生成轻量外壳（无 CSG），点击 Export STL 时才执行完整 CSG
 - ✅ Cherry Profile 键帽几何体生成（梯形轮廓 + 顶部球面内凹）
 - ✅ Cherry MX 十字轴孔（4.15 × 1.35 mm，深 4.0 mm）
 - ✅ 参数化壁厚（内腔挖空）
@@ -107,7 +108,10 @@ src/
 │   │   └── PrintValidator.js  # 轻量提示系统（warnings，不阻塞导出）
 │   └── geometry/
 │       ├── OptimizedKeycapGenerator.js  # ✅ 唯一权威几何生成器
-│       ├── AsyncKeycapGenerator.js      # 异步包装 + LRU 缓存
+│       │   ├── generatePreview()        #   快速外壳（无 CSG），用于实时预览
+│       │   └── generate()              #   完整 CSG（挖空 + 轴孔），仅导出时调用
+│       ├── AsyncKeycapGenerator.js      # 异步包装 + LRU 缓存（预览/导出各自独立缓存）
+│       ├── generatorInstance.js         # 共享单例（Keycap + Header + PerformanceSettings 共用）
 │       └── legacy/
 │           └── KeycapGenerator.js       # 旧版生成器（已废弃，仅供参考）
 ├── store/
@@ -116,7 +120,9 @@ src/
     └── KeycapGeneratorCore.js # Worker 版本（实验性）
 ```
 
-> **唯一几何生成路径：** `Keycap.jsx` → `AsyncKeycapGenerator` → `OptimizedKeycapGenerator`
+> **生成路径一览：**
+> - **实时预览**：`Slider/Dropdown 变化` → `Zustand store` → `Keycap.jsx` → `generatePreviewAsync()` → 外壳网格（无 CSG）
+> - **导出 STL**：`点击 Export STL` → `Header.jsx` → `generateAsync()` → 完整 CSG 网格 → 下载文件
 
 ---
 
@@ -124,7 +130,7 @@ src/
 
 1. **非 Watertight**：CSG 运算生成的网格不保证完全封闭，部分切片软件需要开启"修复网格"选项。
 2. **SA / DSA / OEM 轮廓**：目前使用与 Cherry 相同的几何体生成，轮廓差异尚未实现。
-3. **大尺寸键帽（≥2.25u）**：CSG 耗时较长（200–800ms），页面短暂卡顿属正常现象。
+3. **大尺寸键帽（≥2.25u）**：导出 STL 时 CSG 耗时较长（200–800ms），导出按钮会显示"生成中..."提示，属正常现象。预览为轻量外壳，不受影响。
 4. **浏览器兼容**：需要 WebGL2 支持（Chrome 90+ / Firefox 90+ / Safari 15+）。
 
 ---
@@ -134,7 +140,7 @@ src/
 - [x] **v0.1** 基础几何体生成（Cherry 1u，含轴孔）
 - [x] **v0.2** 参数化 UI + LRU 缓存
 - [x] **v0.3** STL 导出闭环 + README 完善
-- [ ] **v0.4** SA / DSA / OEM 轮廓精化
+- [x] **v0.4** 预览/导出解耦（无 CSG 实时预览 + 按需 CSG 导出）
 - [ ] **v0.5** 键帽图例（文字刻印）
 - [ ] **v1.0** Web Worker 生成 + 完整测试覆盖
 
