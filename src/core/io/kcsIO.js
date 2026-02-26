@@ -2,7 +2,7 @@
  * KeycapStudio – File I/O for .kcs.json unified project files
  *
  * - Open / save `.kcs.json` files via the browser File API
- * - Autosave to localStorage
+ * - Autosave to localStorage (key: kcs_autosave_v1)
  */
 
 import {
@@ -10,7 +10,7 @@ import {
   deserialiseKcsDocument,
 } from '../model/kcsDocument.js';
 
-const KCS_AUTOSAVE_KEY = 'keycap-studio-kcs-autosave';
+export const KCS_AUTOSAVE_KEY = 'kcs_autosave_v1';
 
 // ─── Browser file helpers ────────────────────────────────────────────────────
 
@@ -59,13 +59,21 @@ export function saveKcsFile(doc, filename = 'project.kcs.json') {
 
 /**
  * Write a KCS document to localStorage (autosave).
+ * Uses requestIdleCallback when available to avoid blocking the main thread.
  * @param {object} doc
  */
 export function writeKcsAutosave(doc) {
-  try {
-    localStorage.setItem(KCS_AUTOSAVE_KEY, serialiseKcsDocument(doc));
-  } catch (_) {
-    // localStorage full or unavailable — silently ignore
+  const doWrite = () => {
+    try {
+      localStorage.setItem(KCS_AUTOSAVE_KEY, serialiseKcsDocument(doc));
+    } catch (_) {
+      // localStorage full or unavailable — silently ignore
+    }
+  };
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(doWrite, { timeout: 2000 });
+  } else {
+    doWrite();
   }
 }
 
@@ -88,5 +96,30 @@ export function readKcsAutosave() {
     return deserialiseKcsDocument(raw);
   } catch (_) {
     return null;
+  }
+}
+
+// ─── Periodic autosave timer ─────────────────────────────────────────────────
+
+let _autosaveTimer = null;
+const AUTOSAVE_INTERVAL_MS = 30_000;
+
+/**
+ * Start the 30-second periodic autosave timer.
+ * Calls `getDoc()` every 30 s and writes the result using writeKcsAutosave.
+ * @param {() => object} getDoc  callback that returns the current KCS document
+ */
+export function startKcsAutosave(getDoc) {
+  stopKcsAutosave();
+  _autosaveTimer = setInterval(() => {
+    writeKcsAutosave(getDoc());
+  }, AUTOSAVE_INTERVAL_MS);
+}
+
+/** Stop the periodic autosave timer. */
+export function stopKcsAutosave() {
+  if (_autosaveTimer !== null) {
+    clearInterval(_autosaveTimer);
+    _autosaveTimer = null;
   }
 }

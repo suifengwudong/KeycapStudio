@@ -64,5 +64,9 @@
         "color": "#111111"
       }
     }
+  },
+  "uiContext": {
+    "mode": "2d",
+    "selectedLegend": "main"
   }
 }

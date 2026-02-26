@@ -106,9 +106,10 @@ export default function DesignHeader({ mode, setMode }) {
 
   const handleExportPackage = useCallback(() => {
     syncLegend2dFromProject();
+    const latestKcs     = useAssetStore.getState().asset;
     const latestProject = useProjectStore.getState().project;
-    exportPackage(assetName, latestProject, scene);
-  }, [assetName, scene, syncLegend2dFromProject]);
+    exportPackage(latestKcs, latestProject, scene);
+  }, [scene, syncLegend2dFromProject]);
 
   // ── 2D export dropdown ────────────────────────────────────────────────────
 

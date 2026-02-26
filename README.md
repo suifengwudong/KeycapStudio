@@ -4,7 +4,7 @@
 
 ---
 
-## V1 – 2D Design Tool
+## V1.1 – Unified 3D Shape → 2D Legends → Export Workflow
 
 ### Quick start
 
@@ -13,36 +13,59 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The app opens in **2D Design** mode by default.
+Open `http://localhost:5173`. The app opens in **3D Shape** mode (Step 1).
 
-### Workflow
+### Closed-loop workflow: 3D Shape → 2D Legends → Export Package
 
 ```
-New / Open  →  Set preset + style  →  Edit legends  →  Position  →  Export
+1 Shape (3D)  →  2 Legends (2D)  →  3 Export Package
 ```
 
-1. **New / Open project** — use the toolbar to create a fresh keycap or load an existing `.keycap` file.
-2. **Choose a size preset** — Inspector → *Size Preset*: `1u`, `1.25u`, `1.5u`, `2u`, `Shift (2.25u)`, `Enter (2.25u)`.
-3. **Set style** — background colour, outline toggle + colour + thickness slider.
-4. **Edit legends** — four legend slots: *Main*, *Top-Left*, *Bottom-Right*, *Left*.  
-   Each can be independently enabled/disabled with its own text, colour, font, and font size.
-5. **Position legends** — drag legend handles on the canvas, use **Arrow keys** (1 px nudge) or **Shift+Arrows** (8 px nudge), or type exact X/Y fractions in the inspector.  
-   Click *Center main legend* to snap the main legend to the keycap centre.
-6. **Zoom** — scroll wheel on canvas, or use the `+` / `−` / `Reset` controls in the canvas corner.
-7. **Save** — *Save* button downloads a `.keycap` JSON file (see [File Format](#file-format)).
-8. **Export** — *Export ▾* dropdown:
-   - **PNG 2× / 4×** (opaque or transparent background)
-   - **SVG** (opaque or transparent background)
+1. **1 Shape** — Configure 3D keycap geometry in the 3D inspector:
+   - Choose profile (Cherry, SA, DSA, OEM), size, color, stem hole, etc.
+   - Click **Next: Legends →** to proceed to step 2.
+2. **2 Legends** — Switch to the 2D design editor:
+   - The 2D canvas automatically resizes to match the 3D size preset.
+   - Edit four legend slots (Main, Top-Left, Bottom-Right, Left).
+   - Click **← Back: Shape** to return to 3D if needed.
+3. **Export Package** — Click the **Export Package** button (always visible):
+   - Downloads three files in sequence: `.stl` (3D print), `.png` (4× scale), `.svg` (vector).
+   - All files share the same base name: `{preset}_{legend}.stl/png/svg`.
 
-### Undo / Redo
+### Size presets (V1.1)
 
-Full undo/redo history (up to 100 steps) for all edits: text, position, colours, preset changes.  
-Click **↩ Undo** / **↪ Redo** in the toolbar, or use `Ctrl+Z` / `Ctrl+Y`.
+| Preset | Width | Physical width |
+|--------|-------|---------------|
+| `1u`    | 1.0u  | 18.0 mm |
+| `1.25u` | 1.25u | 22.5 mm |
+| `1.5u`  | 1.5u  | 27.0 mm |
+| `1.75u` | 1.75u | 31.5 mm *(new)* |
+| `2u`    | 2.0u  | 36.0 mm |
+| `2.25u` | 2.25u | 40.5 mm *(canonical; replaces Shift/Enter aliases)* |
+| `6.25u` | 6.25u | 112.5 mm *(new)* |
+| `7u`    | 7.0u  | 126.0 mm *(new)* |
+
+> **ISO Enter (V1.1 note):** ISO Enter is approximated as a **2.25u rectangular** keycap
+> in V1.1. When you select ISO Enter in the 3D inspector, the 2D canvas automatically
+> switches to the `2.25u` preset and shows a "⚠ ISO Enter（矩形近似）" notice.
+> Full ISO Enter 2D shape support is planned for V1.2.
+
+### File formats (V1.1)
+
+| Format | Used for |
+|--------|---------|
+| `.kcs.json` | **Unified project file** — embeds 3D shape params + 2D legend data |
+| `.keycap` | Legacy 2D-only project (still importable) |
+| `.kcs3d.json` | Legacy 3D scene document |
 
 ### Autosave & Crash Recovery
 
-The app autosaves your project to `localStorage` every 30 seconds.  
-On the next launch, if an unsaved autosave is detected, you will be offered the option to restore it.
+The app autosaves the entire `.kcs.json` project (including `uiContext`) to `localStorage` (key: `kcs_autosave_v1`).
+- **On-change writes** use `requestIdleCallback` to avoid blocking the main thread.
+- A **30-second interval** provides an additional safety net.
+
+On the next launch, if an unsaved autosave is detected, you will be offered the option to restore it.  
+Restoration also recovers the last active mode (2D/3D) and the selected legend slot.
 
 ---
 
@@ -92,16 +115,16 @@ Add nodes  →  Edit params  →  Arrange  →  Save Scene  →  Export STL
 
 ## File Formats
 
-### `.kcs.json` — Unified project file *(new in v1.2)*
+### `.kcs.json` — Unified project file *(V1.1)*
 
 A single self-contained file that embeds **both** the 3D shape parameters and
-the 2D legend data.  Produced and consumed by `kcsDocument.js` / `kcsIO.js`.
+the 2D legend data, plus minimal UI context.  Produced and consumed by `kcsDocument.js` / `kcsIO.js`.
 
 ```json
 {
   "format": "kcs",
   "version": 1,
-  "name": "Demo – A key",
+  "asset": { "name": "Demo – A key" },
   "shape3d": {
     "engine": "keycap-param-v1",
     "params": {
@@ -132,7 +155,8 @@ the 2D legend data.  Produced and consumed by `kcsDocument.js` / `kcsIO.js`.
       "bottomRight": { "enabled": false, "text": "",  "x":  0.28, "y":  0.28, "font": "Arial", "fontSize": 11, "color": "#111111" },
       "left":        { "enabled": false, "text": "",  "x": -0.3,  "y":  0,    "font": "Arial", "fontSize": 11, "color": "#111111" }
     }
-  }
+  },
+  "uiContext": { "mode": "2d", "selectedLegend": "main" }
 }
 ```
 
@@ -140,11 +164,13 @@ the 2D legend data.  Produced and consumed by `kcsDocument.js` / `kcsIO.js`.
 |-----------------|-------------|
 | `format` | Always `"kcs"` |
 | `version` | Schema version (currently `1`) |
-| `name` | Human-readable project name |
+| `asset.name` | Human-readable project name |
 | `shape3d.engine` | Always `"keycap-param-v1"` |
 | `shape3d.params` | Flat keycap geometry parameters (profile, size, color, texture, …) |
 | `legend2d.keycap` | 2D style: preset, bgColor, outline settings |
 | `legend2d.legends` | Four legend slots: main, topLeft, bottomRight, left |
+| `uiContext.mode` | Last active mode: `"3d"` or `"2d"` (restored on crash recovery) |
+| `uiContext.selectedLegend` | Last selected legend slot (restored on crash recovery) |
 
 A complete example is in [`examples/demo.kcs.json`](examples/demo.kcs.json).
 
@@ -262,9 +288,11 @@ Tests cover:
 
 | File | Coverage |
 |------|----------|
-| `projectModel.test.js` | 2D model serialisation, presets |
+| `projectModel.test.js` | 2D model serialisation, presets, normalisePreset |
 | `sceneDocument.test.js` | 3D scene model, node factories, tree helpers, round-trip |
 | `kcsDocument.test.js` | Unified `.kcs.json` format, validation, round-trip, conversions |
+| `sizeMapping.test.js` | 3D size → 2D preset mapping, ISO Enter approximation |
+| `filename.test.js` | Export filename sanitization and naming rules |
 | `export.test.js` | Export dimension calculations, SVG generation |
 | `projectStore.test.js` | Undo/redo stack, autosave |
 
