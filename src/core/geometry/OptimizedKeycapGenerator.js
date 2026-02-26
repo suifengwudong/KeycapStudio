@@ -25,6 +25,34 @@ export class OptimizedKeycapGenerator {
   }
 
   /**
+   * 生成预览网格（跳过 CSG，仅外壳，速度快）
+   */
+  generatePreview(params) {
+    const {
+      profile = 'Cherry',
+      size = '1u',
+    } = params;
+
+    const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
+
+    const profileData = PROFILES[profile] || PROFILES['Cherry'];
+    const sizeData = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
+    const height = params.height || profileData.baseHeight;
+    const bottomWidth = sizeData.width;
+    const bottomDepth = sizeData.depth;
+
+    const mesh = this._createHighQualityMesh(
+      bottomWidth,
+      bottomDepth,
+      height,
+      profileData,
+      topRadius
+    );
+
+    return mesh;
+  }
+
+  /**
    * 生成键帽网格
    */
   generate(params) {
