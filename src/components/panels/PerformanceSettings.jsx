@@ -1,5 +1,5 @@
 import React from 'react';
-import { asyncGenerator } from '../canvas/Keycap';
+import { asyncGenerator } from '../../core/geometry/generatorInstance';
 
 export default function PerformanceSettings() {
   const [mode, setMode] = React.useState('balanced');
