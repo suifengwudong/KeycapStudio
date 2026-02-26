@@ -8,4 +8,22 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split heavy 3D / geometry vendors into their own cacheable chunk
+          'three-vendor': [
+            'three',
+            '@react-three/fiber',
+            '@react-three/drei',
+            'three-csg-ts',
+            'maath',
+          ],
+          // Isolate React runtime so it can be cached independently
+          'react-vendor': ['react', 'react-dom'],
+        },
+      },
+    },
+  },
 })

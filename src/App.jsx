@@ -1,15 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import DesignHeader   from './components/layout/DesignHeader';
 import InspectorPanel from './components/panels/InspectorPanel';
 import KeycapCanvas2D from './components/canvas/KeycapCanvas2D';
-import Scene3D        from './components/canvas/Scene3D';
-import Outliner       from './components/panels/Outliner';
-import NodeInspector  from './components/panels/NodeInspector';
 import ExportOverlay  from './components/common/ExportOverlay';
 import { useAssetStore, readKcsAutosave } from './store/assetStore';
 import { useProjectStore } from './store/projectStore';
 import { startKcsAutosave, stopKcsAutosave } from './core/io/kcsIO';
 import { useExportController } from './hooks/useExportController';
+
+// ── Lazy-load the 3D components so three.js is only fetched when needed ───────
+const Scene3D       = lazy(() => import('./components/canvas/Scene3D'));
+const Outliner      = lazy(() => import('./components/panels/Outliner'));
+const NodeInspector = lazy(() => import('./components/panels/NodeInspector'));
+
+function ThreeDFallback() {
+  return (
+    <div className="flex items-center justify-center w-full h-full text-gray-500 text-sm">
+      Loading 3D viewport…
+    </div>
+  );
+}
 
 export default function App() {
   const [mode, setMode] = useState('3d'); // start in Shape (3D) – step 1 of the flow
@@ -72,16 +82,22 @@ export default function App() {
           <>
             {/* 3D mode: Outliner | viewport | NodeInspector */}
             <aside className="w-48 bg-gray-800 border-r border-gray-700 overflow-hidden flex flex-col">
-              <Outliner />
+              <Suspense fallback={<ThreeDFallback />}>
+                <Outliner />
+              </Suspense>
             </aside>
             <main className="flex-1 relative">
-              <Scene3D />
+              <Suspense fallback={<ThreeDFallback />}>
+                <Scene3D />
+              </Suspense>
             </main>
             <aside className="w-72 bg-gray-800 border-l border-gray-700 overflow-y-auto">
               <div className="p-3 border-b border-gray-700">
                 <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">Inspector</h2>
               </div>
-              <NodeInspector />
+              <Suspense fallback={null}>
+                <NodeInspector />
+              </Suspense>
             </aside>
           </>
         )}

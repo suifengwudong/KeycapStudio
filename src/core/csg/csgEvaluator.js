@@ -173,7 +173,45 @@ function nextFrame() {
 }
 
 /**
+ * Run the CSG evaluation + STL serialisation in a dedicated Web Worker and
+ * return the binary buffer.  Falls back to main-thread evaluation if workers
+ * are unavailable.
+ *
+ * @param {object} scene - scene document (plain JSON, transferable)
+ * @returns {Promise<Uint8Array>} binary STL bytes
+ */
+function _exportInWorker(scene) {
+  return new Promise((resolve, reject) => {
+    try {
+      const worker = new Worker(
+        new URL('../../workers/stlExportWorker.js', import.meta.url),
+        { type: 'module' },
+      );
+      worker.onmessage = (e) => {
+        worker.terminate();
+        if (e.data.error) {
+          reject(new Error(e.data.error));
+        } else {
+          resolve(new Uint8Array(e.data.buffer));
+        }
+      };
+      worker.onerror = (event) => {
+        worker.terminate();
+        reject(new Error(event.message ?? 'Worker error'));
+      };
+      worker.postMessage({ scene });
+    } catch (err) {
+      // Worker construction failed (e.g. in test environments) – fall back
+      reject(new Error('worker_unavailable', { cause: err }));
+    }
+  });
+}
+
+/**
  * Run the export pipeline and trigger a binary STL download.
+ *
+ * Heavy CSG computation runs in a Web Worker when available so the main
+ * thread (and the UI) stays responsive throughout.
  *
  * @param {object}   scene             - scene document
  * @param {string}   [filename='scene.stl']
@@ -184,15 +222,23 @@ export async function exportSceneSTL(scene, filename = 'scene.stl', onStage) {
 
   onStage?.('Step 1/3: Generating geometry…');
   await nextFrame();
-  const object = evaluateScene(scene, 'export');
 
-  onStage?.('Step 2/3: Running CSG pipeline…');
-  await nextFrame();
-  const exporter = new ThreeSTLExporter();
-  const result = exporter.parse(object, { binary: true });
+  let stlBytes;
+
+  try {
+    onStage?.('Step 2/3: Running CSG pipeline (background)…');
+    stlBytes = await _exportInWorker(scene);
+  } catch (workerErr) {
+    // Fallback: run on main thread (blocks UI but always works)
+    if (workerErr.message !== 'worker_unavailable') throw workerErr;
+    const object = evaluateScene(scene, 'export');
+    await nextFrame();
+    const exporter = new ThreeSTLExporter();
+    stlBytes = exporter.parse(object, { binary: true });
+  }
 
   onStage?.('Step 3/3: Writing STL file…');
-  const blob = new Blob([result], { type: 'application/octet-stream' });
+  const blob = new Blob([stlBytes], { type: 'application/octet-stream' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
