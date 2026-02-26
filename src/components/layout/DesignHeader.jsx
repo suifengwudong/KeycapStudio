@@ -24,7 +24,6 @@ import { exportSVG } from '../../core/export/SVGExporter.js';
 import { exportPackage } from '../../core/export/exportPackage.js';
 import { exportSceneSTL } from '../../core/csg/csgEvaluator.js';
 import { makeExportNames } from '../../core/io/filename.js';
-import { showToast } from '../common/toast.js';
 
 function ToolbarBtn({ onClick, disabled, children, title, variant = 'default' }) {
   const base  = 'px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed';
@@ -108,10 +107,7 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport }) 
   // ── Shared export validation ──────────────────────────────────────────────
 
   const validateSceneForExport = useCallback(() => {
-    if (!scene?.root) {
-      showToast('Nothing to export: scene is empty.', 'warning');
-      return false;
-    }
+    if (!scene?.root) throw new Error('Scene is empty – nothing to export.');
     return true;
   }, [scene]);
 
@@ -119,28 +115,48 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport }) 
 
   const handleExportSTL = useCallback(() => {
     if (isExporting) return;
-    runExport(async (setStage) => {
-      if (!validateSceneForExport()) return;
-      const latestKcs = useAssetStore.getState().asset;
-      const { stl } = makeExportNames(latestKcs);
-      await exportSceneSTL(scene, stl, setStage);
-      showToast(`Exported: ${stl}`);
-    });
+    const latestKcs = useAssetStore.getState().asset;
+    const { stl } = makeExportNames(latestKcs);
+    runExport(
+      async ({ setStage }) => {
+        validateSceneForExport();
+        await exportSceneSTL(scene, stl, setStage);
+      },
+      {
+        initialStage: 'Starting STL export…',
+        successMessage: `STL exported: ${stl}`,
+        errorMessageMapper: (e) => {
+          const m = e?.message ?? '';
+          if (m.includes('CSG')) return 'Export failed: geometry error – check wall thickness / corner radius';
+          return `Export failed: ${m || 'unknown error'}`;
+        },
+      },
+    );
   }, [isExporting, runExport, scene, validateSceneForExport]);
 
   // ── Export package handler ────────────────────────────────────────────────
 
   const handleExportPackage = useCallback(() => {
     if (isExporting) return;
-    runExport(async (setStage) => {
-      if (!validateSceneForExport()) return;
-      syncLegend2dFromProject();
-      const latestKcs     = useAssetStore.getState().asset;
-      const latestProject = useProjectStore.getState().project;
-      const names = makeExportNames(latestKcs);
-      await exportPackage(latestKcs, latestProject, scene, setStage);
-      showToast(`Exported package: ${names.stl}, ${names.png}, ${names.svg}`);
-    });
+    syncLegend2dFromProject();
+    const latestKcs     = useAssetStore.getState().asset;
+    const latestProject = useProjectStore.getState().project;
+    const names = makeExportNames(latestKcs);
+    runExport(
+      async ({ setStage }) => {
+        validateSceneForExport();
+        await exportPackage(latestKcs, latestProject, scene, (s) => setStage(s));
+      },
+      {
+        initialStage: 'Starting package export…',
+        successMessage: `Package exported: ${names.stl}, ${names.png}, ${names.svg}`,
+        errorMessageMapper: (e) => {
+          const m = e?.message ?? '';
+          if (m.includes('CSG')) return 'Export failed: geometry error – check wall thickness / corner radius';
+          return `Export failed: ${m || 'unknown error'}`;
+        },
+      },
+    );
   }, [isExporting, runExport, scene, syncLegend2dFromProject, validateSceneForExport]);
 
   // ── 2D export dropdown ────────────────────────────────────────────────────
