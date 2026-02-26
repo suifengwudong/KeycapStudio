@@ -14,13 +14,19 @@ export class KeycapSTLExporter {
    * @param {boolean} binary - 是否使用二进制格式
    */
   export(keycapMesh, filename = 'keycap.stl', binary = true) {
-    // 1. 验证可打印性
+    // 1. 验证（仅提示，不阻塞）
     const validation = this.validator.validate(keycapMesh);
-    
+
     if (!validation.isPrintable) {
-      console.error('模型存在问题:', validation.errors);
+      // 只有在 mesh/geometry 不存在时才阻止导出
+      console.error('导出失败:', validation.errors);
       alert(`无法导出：\n${validation.errors.join('\n')}`);
       return;
+    }
+
+    // 输出 warnings 到 console（不弹窗阻塞用户）
+    if (validation.warnings.length > 0) {
+      console.warn('导出提示:', validation.warnings);
     }
 
     // 2. 生成STL
