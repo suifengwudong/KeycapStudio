@@ -60,8 +60,12 @@ Open `http://localhost:5173`. The app opens in **3D Shape** mode (Step 1).
 
 ### Autosave & Crash Recovery
 
-The app autosaves the entire `.kcs.json` project to `localStorage` (key: `keycap-studio-kcs-autosave`) every 30 seconds.  
-On the next launch, if an unsaved autosave is detected, you will be offered the option to restore it.
+The app autosaves the entire `.kcs.json` project (including `uiContext`) to `localStorage` (key: `kcs_autosave_v1`).
+- **On-change writes** use `requestIdleCallback` to avoid blocking the main thread.
+- A **30-second interval** provides an additional safety net.
+
+On the next launch, if an unsaved autosave is detected, you will be offered the option to restore it.  
+Restoration also recovers the last active mode (2D/3D) and the selected legend slot.
 
 ---
 
@@ -111,16 +115,16 @@ Add nodes  →  Edit params  →  Arrange  →  Save Scene  →  Export STL
 
 ## File Formats
 
-### `.kcs.json` — Unified project file *(new in v1.2)*
+### `.kcs.json` — Unified project file *(V1.1)*
 
 A single self-contained file that embeds **both** the 3D shape parameters and
-the 2D legend data.  Produced and consumed by `kcsDocument.js` / `kcsIO.js`.
+the 2D legend data, plus minimal UI context.  Produced and consumed by `kcsDocument.js` / `kcsIO.js`.
 
 ```json
 {
   "format": "kcs",
   "version": 1,
-  "name": "Demo – A key",
+  "asset": { "name": "Demo – A key" },
   "shape3d": {
     "engine": "keycap-param-v1",
     "params": {
@@ -151,7 +155,8 @@ the 2D legend data.  Produced and consumed by `kcsDocument.js` / `kcsIO.js`.
       "bottomRight": { "enabled": false, "text": "",  "x":  0.28, "y":  0.28, "font": "Arial", "fontSize": 11, "color": "#111111" },
       "left":        { "enabled": false, "text": "",  "x": -0.3,  "y":  0,    "font": "Arial", "fontSize": 11, "color": "#111111" }
     }
-  }
+  },
+  "uiContext": { "mode": "2d", "selectedLegend": "main" }
 }
 ```
 
@@ -159,11 +164,13 @@ the 2D legend data.  Produced and consumed by `kcsDocument.js` / `kcsIO.js`.
 |-----------------|-------------|
 | `format` | Always `"kcs"` |
 | `version` | Schema version (currently `1`) |
-| `name` | Human-readable project name |
+| `asset.name` | Human-readable project name |
 | `shape3d.engine` | Always `"keycap-param-v1"` |
 | `shape3d.params` | Flat keycap geometry parameters (profile, size, color, texture, …) |
 | `legend2d.keycap` | 2D style: preset, bgColor, outline settings |
 | `legend2d.legends` | Four legend slots: main, topLeft, bottomRight, left |
+| `uiContext.mode` | Last active mode: `"3d"` or `"2d"` (restored on crash recovery) |
+| `uiContext.selectedLegend` | Last selected legend slot (restored on crash recovery) |
 
 A complete example is in [`examples/demo.kcs.json`](examples/demo.kcs.json).
 

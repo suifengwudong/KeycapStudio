@@ -78,6 +78,13 @@ describe('createDefaultKcsDocument', () => {
     expect(doc.legend2d.legends.bottomRight.enabled).toBe(false);
     expect(doc.legend2d.legends.left.enabled).toBe(false);
   });
+
+  it('has a uiContext with default mode and selectedLegend', () => {
+    const doc = createDefaultKcsDocument();
+    expect(doc.uiContext).toBeDefined();
+    expect(doc.uiContext.mode).toBe('3d');
+    expect(doc.uiContext.selectedLegend).toBe('main');
+  });
 });
 
 // ─── validateKcsDocument ─────────────────────────────────────────────────────
@@ -361,5 +368,16 @@ describe('validateKcsDocument – legacy name migration', () => {
     };
     const validated = validateKcsDocument(doc);
     expect(validated.asset.name).toBe('Old Style Name');
+  });
+
+  it('accepts documents without uiContext (backward-compatible)', () => {
+    const doc = {
+      format  : KCS_FORMAT,
+      version : KCS_VERSION,
+      asset   : { name: 'Old Doc' },
+      shape3d : defaultShape3d(),
+      legend2d: defaultLegend2d(),
+    };
+    expect(() => validateKcsDocument(doc)).not.toThrow();
   });
 });
