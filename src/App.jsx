@@ -1,29 +1,52 @@
-import React from 'react';
-import Header from './components/layout/Header';
-import Sidebar from './components/layout/Sidebar';
-import Scene3D from './components/canvas/Scene3D';
-import PropertyPanel from './components/layout/PropertyPanel';
-import { useKeycapStore } from './store/keycapStore';
+import React, { useState, useEffect } from 'react';
+import DesignHeader   from './components/layout/DesignHeader';
+import InspectorPanel from './components/panels/InspectorPanel';
+import KeycapCanvas2D from './components/canvas/KeycapCanvas2D';
+import Scene3D        from './components/canvas/Scene3D';
+import PropertyPanel  from './components/layout/PropertyPanel';
+import { useProjectStore, readAutosave } from './store/projectStore';
 
 export default function App() {
-  const { currentProfile } = useKeycapStore();
+  const [mode, setMode] = useState('2d'); // '2d' | '3d'
+  const setProject = useProjectStore(s => s.setProject);
+
+  // Crash-recovery: offer to restore autosave on first launch
+  useEffect(() => {
+    const saved = readAutosave();
+    if (saved) {
+      const restore = window.confirm(
+        'An unsaved project was found. Restore it?'
+      );
+      if (restore) setProject(saved, { resetHistory: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="h-screen flex flex-col bg-gray-900 text-white">
-      {/* 顶部工具栏 */}
-      <Header />
-      
+      {/* Toolbar */}
+      <DesignHeader mode={mode} setMode={setMode} />
+
       <div className="flex flex-1 overflow-hidden">
-        {/* 左侧功能面板 */}
-        <Sidebar />
-        
-        {/* 中间3D视图 */}
-        <main className="flex-1 relative">
-          <Scene3D />
-        </main>
-        
-        {/* 右侧属性面板 */}
-        <PropertyPanel />
+        {mode === '2d' ? (
+          <>
+            {/* Left inspector (2D mode) */}
+            <InspectorPanel />
+
+            {/* 2D canvas */}
+            <main className="flex-1 relative overflow-hidden">
+              <KeycapCanvas2D />
+            </main>
+          </>
+        ) : (
+          <>
+            {/* 3D mode: keep existing layout */}
+            <main className="flex-1 relative">
+              <Scene3D />
+            </main>
+            <PropertyPanel />
+          </>
+        )}
       </div>
     </div>
   );
