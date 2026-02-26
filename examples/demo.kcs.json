@@ -1,7 +1,7 @@
 {
   "format": "kcs",
   "version": 1,
-  "name": "Demo – A key",
+  "asset": { "name": "Demo – A key" },
   "shape3d": {
     "engine": "keycap-param-v1",
     "params": {

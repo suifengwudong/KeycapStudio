@@ -6,6 +6,8 @@ import { describe, it, expect } from 'vitest';
 import {
   KCS_FORMAT,
   KCS_VERSION,
+  SIZE_TO_2D_PRESET,
+  sizeToPreset,
   createDefaultKcsDocument,
   validateKcsDocument,
   serialiseKcsDocument,
@@ -26,10 +28,11 @@ describe('createDefaultKcsDocument', () => {
     expect(doc.version).toBe(KCS_VERSION);
   });
 
-  it('has a name field', () => {
+  it('has an asset.name field', () => {
     const doc = createDefaultKcsDocument();
-    expect(typeof doc.name).toBe('string');
-    expect(doc.name.length).toBeGreaterThan(0);
+    expect(doc.asset).toBeDefined();
+    expect(typeof doc.asset.name).toBe('string');
+    expect(doc.asset.name.length).toBeGreaterThan(0);
   });
 
   it('contains shape3d with keycap-param-v1 engine', () => {
@@ -144,7 +147,7 @@ describe('validateKcsDocument', () => {
 describe('serialisation round-trip', () => {
   it('serialises and deserialises without data loss', () => {
     const original = createDefaultKcsDocument();
-    original.name = 'My Keycap';
+    original.asset.name = 'My Keycap';
     original.shape3d.params.color = '#2563eb';
     original.legend2d.legends.main.text = 'Enter';
 
@@ -213,7 +216,7 @@ describe('buildKcsDocument', () => {
     };
     const doc = buildKcsDocument(params, project, 'Q key');
     expect(() => validateKcsDocument(doc)).not.toThrow();
-    expect(doc.name).toBe('Q key');
+    expect(doc.asset.name).toBe('Q key');
     expect(doc.shape3d.params.profile).toBe('SA');
     expect(doc.legend2d.keycap.bgColor).toBe('#ff0000');
   });
@@ -223,7 +226,7 @@ describe('buildKcsDocument', () => {
       defaultShape3d().params,
       { keycap: defaultLegend2d().keycap, legends: defaultLegend2d().legends },
     );
-    expect(typeof doc.name).toBe('string');
+    expect(typeof doc.asset.name).toBe('string');
   });
 
   it('does not mutate the input params', () => {
@@ -304,5 +307,53 @@ describe('defaultLegend2d', () => {
     const b = defaultLegend2d();
     a.keycap.bgColor = '#mutated';
     expect(b.keycap.bgColor).toBe('#e0e0e0');
+  });
+});
+
+// ─── sizeToPreset / SIZE_TO_2D_PRESET ────────────────────────────────────────
+
+describe('sizeToPreset', () => {
+  it('maps standard sizes to 2D presets', () => {
+    expect(sizeToPreset('1u')).toBe('1u');
+    expect(sizeToPreset('1.25u')).toBe('1.25u');
+    expect(sizeToPreset('1.5u')).toBe('1.5u');
+    expect(sizeToPreset('2u')).toBe('2u');
+  });
+
+  it('maps 2.25u to Shift preset', () => {
+    expect(sizeToPreset('2.25u')).toBe('Shift');
+  });
+
+  it('maps ISO-Enter to Enter preset', () => {
+    expect(sizeToPreset('ISO-Enter')).toBe('Enter');
+  });
+
+  it('returns null for sizes without a 2D equivalent', () => {
+    expect(sizeToPreset('6.25u')).toBeNull();
+    expect(sizeToPreset('2.75u')).toBeNull();
+    expect(sizeToPreset('1.75u')).toBeNull();
+    expect(sizeToPreset('unknown')).toBeNull();
+  });
+
+  it('SIZE_TO_2D_PRESET covers all expected direct mappings', () => {
+    expect(SIZE_TO_2D_PRESET['1u']).toBe('1u');
+    expect(SIZE_TO_2D_PRESET['2.25u']).toBe('Shift');
+    expect(SIZE_TO_2D_PRESET['ISO-Enter']).toBe('Enter');
+  });
+});
+
+// ─── validateKcsDocument – legacy name migration ─────────────────────────────
+
+describe('validateKcsDocument – legacy name migration', () => {
+  it('migrates top-level name to asset.name if asset is missing', () => {
+    const doc = {
+      format  : KCS_FORMAT,
+      version : KCS_VERSION,
+      name    : 'Old Style Name',
+      shape3d : defaultShape3d(),
+      legend2d: defaultLegend2d(),
+    };
+    const validated = validateKcsDocument(doc);
+    expect(validated.asset.name).toBe('Old Style Name');
   });
 });
