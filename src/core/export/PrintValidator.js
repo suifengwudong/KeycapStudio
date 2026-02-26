@@ -1,36 +1,46 @@
+/**
+ * 打印验证器 - 轻量提示系统
+ * 注意：此验证器仅提供建议性 warnings，不保证 watertight，不阻塞导出。
+ */
 export class PrintValidator {
   validate(mesh) {
     const errors = [];
     const warnings = [];
-    
-    // 1. 检查是否封闭
-    if (!this.isWatertight(mesh)) {
-      errors.push('模型不封闭，无法打印');
+
+    // 仅在 mesh/geometry 不存在时报错（真正的硬错误）
+    if (!mesh || !mesh.geometry) {
+      errors.push('模型几何体缺失，无法导出');
+      return { isPrintable: false, errors, warnings, suggestions: [] };
     }
-    
-    // 2. 检查最小壁厚
-    if (this.getMinWallThickness(mesh) < 1.0) {
-      warnings.push('壁厚过薄，建议≥1.5mm');
-    }
-    
-    // 3. 检查悬空部分
-    // ...
-    
+
+    // 以下为提示性 warnings（不阻塞导出）
+    // 壁厚检查为静态提示，不做实际几何分析
+    warnings.push(...this._checkBasicGeometry(mesh));
+
     return {
-      isPrintable: errors.length === 0,
+      isPrintable: true, // 只要 mesh 存在就允许导出
       errors,
       warnings,
       suggestions: this.getSuggestions(mesh)
     };
   }
 
+  _checkBasicGeometry(mesh) {
+    const warnings = [];
+    const geo = mesh.geometry;
+    if (geo && geo.attributes.position && geo.attributes.position.count === 0) {
+      warnings.push('几何体顶点数为0，模型可能为空');
+    }
+    return warnings;
+  }
+
   isWatertight(mesh) {
-    // TODO: 实现封闭性检查
+    // 暂未实现封闭性检查，保留接口
     return true;
   }
 
   getMinWallThickness(mesh) {
-    // TODO: 实现壁厚检查
+    // 暂未实现壁厚检查，保留接口
     return 1.5;
   }
 

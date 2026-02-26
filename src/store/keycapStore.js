@@ -39,7 +39,11 @@ export const useKeycapStore = create(
         size: '1u',
         color: '#ffffff',
         // ...
-      }
+      },
+
+      // 当前键帽几何体引用（非持久化，用于STL导出）
+      currentGeometry: null,
+      setCurrentGeometry: (geometry) => set({ currentGeometry: geometry }),
     }),
     {
       name: 'keycap-storage', // LocalStorage key
