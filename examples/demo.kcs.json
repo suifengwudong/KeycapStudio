@@ -1,0 +1,68 @@
+{
+  "format": "kcs",
+  "version": 1,
+  "asset": { "name": "Demo – A key" },
+  "shape3d": {
+    "engine": "keycap-param-v1",
+    "params": {
+      "profile": "Cherry",
+      "size": "1u",
+      "color": "#2563eb",
+      "text": "A",
+      "fontSize": 14,
+      "textDepth": 0.5,
+      "topRadius": 0.5,
+      "wallThickness": 1.5,
+      "hasStem": true,
+      "texture": "smooth",
+      "pattern": null
+    }
+  },
+  "legend2d": {
+    "keycap": {
+      "preset": "1u",
+      "bgColor": "#2563eb",
+      "outlineEnabled": true,
+      "outlineColor": "#1d4ed8",
+      "outlineThickness": 2
+    },
+    "legends": {
+      "main": {
+        "enabled": true,
+        "text": "A",
+        "x": 0,
+        "y": 0,
+        "font": "Arial",
+        "fontSize": 24,
+        "color": "#ffffff"
+      },
+      "topLeft": {
+        "enabled": false,
+        "text": "",
+        "x": -0.28,
+        "y": -0.28,
+        "font": "Arial",
+        "fontSize": 11,
+        "color": "#111111"
+      },
+      "bottomRight": {
+        "enabled": false,
+        "text": "",
+        "x": 0.28,
+        "y": 0.28,
+        "font": "Arial",
+        "fontSize": 11,
+        "color": "#111111"
+      },
+      "left": {
+        "enabled": false,
+        "text": "",
+        "x": -0.3,
+        "y": 0,
+        "font": "Arial",
+        "fontSize": 11,
+        "color": "#111111"
+      }
+    }
+  }
+}
