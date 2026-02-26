@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as THREE from 'three';
-import { AsyncKeycapGenerator } from '../../core/geometry/AsyncKeycapGenerator';
-import { Html, useProgress } from '@react-three/drei';
+import { asyncGenerator } from '../../core/geometry/generatorInstance';
+import { Html } from '@react-three/drei';
 import { useKeycapStore } from '../../store/keycapStore';
 
 // 创建全局生成器实例 (Exported for PerformanceSettings)
-export const asyncGenerator = new AsyncKeycapGenerator();
+export { asyncGenerator };
 
 //  加载指示器组件
 function LoadingIndicator() {
@@ -59,7 +59,6 @@ export default function Keycap({
   const [error, setError] = useState(null);
   const mountedRef = useRef(true);
   const abortControllerRef = useRef(null);
-  const setCurrentGeometry = useKeycapStore(state => state.setCurrentGeometry);
 
   //  监听参数变化，异步生成几何体
   useEffect(() => {
@@ -76,7 +75,7 @@ export default function Keycap({
       setError(null);
       
       try {
-        const result = await asyncGenerator.generateAsync({
+        const result = await asyncGenerator.generatePreviewAsync({
           profile,
           size,
           hasStem,
@@ -87,7 +86,6 @@ export default function Keycap({
         if (!cancelled && mountedRef.current) {
           if (result) {
             setGeometryData(result);
-            setCurrentGeometry(result.geometry);
           } else {
             setError('生成失败');
           }
