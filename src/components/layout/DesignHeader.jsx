@@ -22,6 +22,9 @@ import { openProjectFile, saveProjectFile } from '../../core/io/projectIO.js';
 import { exportPNG } from '../../core/export/PNGExporter.js';
 import { exportSVG } from '../../core/export/SVGExporter.js';
 import { exportPackage } from '../../core/export/exportPackage.js';
+import { exportSceneSTL } from '../../core/csg/csgEvaluator.js';
+import { makeExportNames } from '../../core/io/filename.js';
+import { showToast } from '../common/toast.js';
 
 function ToolbarBtn({ onClick, disabled, children, title, variant = 'default' }) {
   const base  = 'px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed';
@@ -61,7 +64,7 @@ function StageIndicator({ mode }) {
   );
 }
 
-export default function DesignHeader({ mode, setMode }) {
+export default function DesignHeader({ mode, setMode, isExporting, runExport }) {
   const project   = useProjectStore(s => s.project);
   const isDirty2d = useProjectStore(s => s.isDirty);
   const past      = useProjectStore(s => s.past);
@@ -102,14 +105,43 @@ export default function DesignHeader({ mode, setMode }) {
     markSaved();
   }, [assetName, markSaved, syncLegend2dFromProject]);
 
+  // ── Shared export validation ──────────────────────────────────────────────
+
+  const validateSceneForExport = useCallback(() => {
+    if (!scene?.root) {
+      showToast('Nothing to export: scene is empty.', 'warning');
+      return false;
+    }
+    return true;
+  }, [scene]);
+
+  // ── 3D STL export ─────────────────────────────────────────────────────────
+
+  const handleExportSTL = useCallback(() => {
+    if (isExporting) return;
+    runExport(async (setStage) => {
+      if (!validateSceneForExport()) return;
+      const latestKcs = useAssetStore.getState().asset;
+      const { stl } = makeExportNames(latestKcs);
+      await exportSceneSTL(scene, stl, setStage);
+      showToast(`Exported: ${stl}`);
+    });
+  }, [isExporting, runExport, scene, validateSceneForExport]);
+
   // ── Export package handler ────────────────────────────────────────────────
 
   const handleExportPackage = useCallback(() => {
-    syncLegend2dFromProject();
-    const latestKcs     = useAssetStore.getState().asset;
-    const latestProject = useProjectStore.getState().project;
-    exportPackage(latestKcs, latestProject, scene);
-  }, [scene, syncLegend2dFromProject]);
+    if (isExporting) return;
+    runExport(async (setStage) => {
+      if (!validateSceneForExport()) return;
+      syncLegend2dFromProject();
+      const latestKcs     = useAssetStore.getState().asset;
+      const latestProject = useProjectStore.getState().project;
+      const names = makeExportNames(latestKcs);
+      await exportPackage(latestKcs, latestProject, scene, setStage);
+      showToast(`Exported package: ${names.stl}, ${names.png}, ${names.svg}`);
+    });
+  }, [isExporting, runExport, scene, syncLegend2dFromProject, validateSceneForExport]);
 
   // ── 2D export dropdown ────────────────────────────────────────────────────
 
@@ -169,6 +201,10 @@ export default function DesignHeader({ mode, setMode }) {
       {/* Stage-specific actions */}
       {mode === '3d' ? (
         <>
+          {/* Export STL for 3D mode */}
+          <ToolbarBtn onClick={handleExportSTL} disabled={isExporting} variant="success" title="Export STL from 3D scene">
+            Export STL
+          </ToolbarBtn>
           {/* Next step CTA */}
           <ToolbarBtn onClick={() => setMode('2d')} variant="success" title="Switch to 2D Legends editor">
             Next: Legends →
@@ -215,7 +251,7 @@ export default function DesignHeader({ mode, setMode }) {
       <span className="w-px h-5 bg-gray-600" />
 
       {/* Export Package – always visible */}
-      <ToolbarBtn onClick={handleExportPackage} variant="primary" title="Export STL + PNG@4x + SVG">
+      <ToolbarBtn onClick={handleExportPackage} disabled={isExporting} variant="primary" title="Export STL + PNG@4x + SVG">
         Export Package
       </ToolbarBtn>
 

@@ -167,21 +167,35 @@ export function evaluateScene(scene, mode = 'preview') {
   return result ?? new THREE.Group();
 }
 
+/** Yield to the browser so the UI can update before heavy work. */
+function nextFrame() {
+  return new Promise(resolve => requestAnimationFrame(resolve));
+}
+
 /**
  * Run the export pipeline and trigger a binary STL download.
  *
- * @param {object} scene    - scene document
- * @param {string} [filename='scene.stl']
+ * @param {object}   scene             - scene document
+ * @param {string}   [filename='scene.stl']
+ * @param {function} [onStage]         - optional callback(stageText) for progress updates
  */
-export function exportSceneSTL(scene, filename = 'scene.stl') {
-  const object  = evaluateScene(scene, 'export');
-  const exporter = new ThreeSTLExporter();
-  const result   = exporter.parse(object, { binary: true });
+export async function exportSceneSTL(scene, filename = 'scene.stl', onStage) {
+  if (!scene?.root) throw new Error('Nothing to export: scene is empty.');
 
+  onStage?.('Building geometry…');
+  await nextFrame();
+  const object = evaluateScene(scene, 'export');
+
+  onStage?.('Running CSG…');
+  await nextFrame();
+  const exporter = new ThreeSTLExporter();
+  const result = exporter.parse(object, { binary: true });
+
+  onStage?.('Writing file…');
   const blob = new Blob([result], { type: 'application/octet-stream' });
   const link = document.createElement('a');
-  link.href     = URL.createObjectURL(blob);
-  link.download  = filename;
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(link.href);
 }
