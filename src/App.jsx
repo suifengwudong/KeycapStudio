@@ -3,7 +3,8 @@ import DesignHeader   from './components/layout/DesignHeader';
 import InspectorPanel from './components/panels/InspectorPanel';
 import KeycapCanvas2D from './components/canvas/KeycapCanvas2D';
 import Scene3D        from './components/canvas/Scene3D';
-import PropertyPanel  from './components/layout/PropertyPanel';
+import Outliner       from './components/panels/Outliner';
+import NodeInspector  from './components/panels/NodeInspector';
 import { useProjectStore, readAutosave } from './store/projectStore';
 
 export default function App() {
@@ -40,11 +41,19 @@ export default function App() {
           </>
         ) : (
           <>
-            {/* 3D mode: keep existing layout */}
+            {/* 3D mode: Outliner | viewport | NodeInspector */}
+            <aside className="w-48 bg-gray-800 border-r border-gray-700 overflow-hidden flex flex-col">
+              <Outliner />
+            </aside>
             <main className="flex-1 relative">
               <Scene3D />
             </main>
-            <PropertyPanel />
+            <aside className="w-72 bg-gray-800 border-l border-gray-700 overflow-y-auto">
+              <div className="p-3 border-b border-gray-700">
+                <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">Inspector</h2>
+              </div>
+              <NodeInspector />
+            </aside>
           </>
         )}
       </div>
