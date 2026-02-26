@@ -28,16 +28,16 @@ const DOWNLOAD_DELAY_MS = 400;
 export async function exportPackage(kcs, project, scene, onStage) {
   const { stl, png, svg } = makeExportNames(kcs);
 
-  // 1. STL
+  // 1. STL – stages emitted by exportSceneSTL (Step 1/3 set by caller)
   await exportSceneSTL(scene, stl, onStage);
 
   // 2. PNG @4x (delay so the browser handles the first download)
-  onStage?.('Exporting PNG…');
+  onStage?.('Step 2/3: Exporting PNG…');
   await new Promise(resolve => setTimeout(resolve, DOWNLOAD_DELAY_MS));
   exportPNG(project, 4, false, png);
 
   // 3. SVG
-  onStage?.('Exporting SVG…');
+  onStage?.('Step 3/3: Exporting SVG…');
   await new Promise(resolve => setTimeout(resolve, DOWNLOAD_DELAY_MS));
   exportSVG(project, false, svg);
 }

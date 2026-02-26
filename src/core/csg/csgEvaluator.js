@@ -182,16 +182,16 @@ function nextFrame() {
 export async function exportSceneSTL(scene, filename = 'scene.stl', onStage) {
   if (!scene?.root) throw new Error('Nothing to export: scene is empty.');
 
-  onStage?.('Building geometry…');
+  onStage?.('Step 1/3: Generating geometry…');
   await nextFrame();
   const object = evaluateScene(scene, 'export');
 
-  onStage?.('Running CSG…');
+  onStage?.('Step 2/3: Running CSG pipeline…');
   await nextFrame();
   const exporter = new ThreeSTLExporter();
   const result = exporter.parse(object, { binary: true });
 
-  onStage?.('Writing file…');
+  onStage?.('Step 3/3: Writing STL file…');
   const blob = new Blob([result], { type: 'application/octet-stream' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
