@@ -320,25 +320,31 @@ describe('sizeToPreset', () => {
     expect(sizeToPreset('2u')).toBe('2u');
   });
 
-  it('maps 2.25u to Shift preset', () => {
-    expect(sizeToPreset('2.25u')).toBe('Shift');
+  it('maps 2.25u to 2.25u preset (canonical key)', () => {
+    expect(sizeToPreset('2.25u')).toBe('2.25u');
   });
 
-  it('maps ISO-Enter to Enter preset', () => {
-    expect(sizeToPreset('ISO-Enter')).toBe('Enter');
+  it('maps ISO-Enter to 2.25u (rectangular approximation)', () => {
+    expect(sizeToPreset('ISO-Enter')).toBe('2.25u');
   });
 
-  it('returns null for sizes without a 2D equivalent', () => {
-    expect(sizeToPreset('6.25u')).toBeNull();
+  it('maps 1.75u, 6.25u, 7u to their own presets', () => {
+    expect(sizeToPreset('1.75u')).toBe('1.75u');
+    expect(sizeToPreset('6.25u')).toBe('6.25u');
+    expect(sizeToPreset('7u')).toBe('7u');
+  });
+
+  it('returns null for unknown sizes', () => {
     expect(sizeToPreset('2.75u')).toBeNull();
-    expect(sizeToPreset('1.75u')).toBeNull();
     expect(sizeToPreset('unknown')).toBeNull();
   });
 
   it('SIZE_TO_2D_PRESET covers all expected direct mappings', () => {
     expect(SIZE_TO_2D_PRESET['1u']).toBe('1u');
-    expect(SIZE_TO_2D_PRESET['2.25u']).toBe('Shift');
-    expect(SIZE_TO_2D_PRESET['ISO-Enter']).toBe('Enter');
+    expect(SIZE_TO_2D_PRESET['2.25u']).toBe('2.25u');
+    expect(SIZE_TO_2D_PRESET['ISO-Enter']).toBe('2.25u');
+    expect(SIZE_TO_2D_PRESET['6.25u']).toBe('6.25u');
+    expect(SIZE_TO_2D_PRESET['7u']).toBe('7u');
   });
 });
 

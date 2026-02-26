@@ -11,6 +11,7 @@
 
 import React, { useCallback } from 'react';
 import { useProjectStore } from '../../store/projectStore.js';
+import { useAssetStore }   from '../../store/assetStore.js';
 import { SIZE_PRESETS }    from '../../core/model/projectModel.js';
 
 const LEGEND_LABELS = {
@@ -73,7 +74,10 @@ function NumericInput({ label, value, onChange, min = -0.5, max = 0.5, step = 0.
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
+// Canonical preset keys shown in the UI dropdown (excludes legacy aliases Shift/Enter)
+const PRESET_OPTIONS = Object.entries(SIZE_PRESETS).filter(
+  ([k]) => k !== 'Shift' && k !== 'Enter'
+);
 
 export default function InspectorPanel() {
   const project        = useProjectStore(s => s.project);
@@ -82,6 +86,10 @@ export default function InspectorPanel() {
   const updateKeycap   = useProjectStore(s => s.updateKeycap);
   const updateLegend   = useProjectStore(s => s.updateLegend);
   const systemFonts    = useProjectStore(s => s.systemFonts);
+
+  // Read 3D size to detect ISO Enter approximation notice
+  const shape3dSize = useAssetStore(s => s.asset?.shape3d?.params?.size);
+  const isIsoEnterApprox = shape3dSize === 'ISO-Enter';
 
   const { keycap, legends } = project;
   const activeLeg = legends[selectedLegend];
@@ -99,10 +107,15 @@ export default function InspectorPanel() {
         onChange={e => updateKeycap({ preset: e.target.value })}
         className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs mb-1"
       >
-        {Object.entries(SIZE_PRESETS).map(([k, v]) => (
+        {PRESET_OPTIONS.map(([k, v]) => (
           <option key={k} value={k}>{v.label}</option>
         ))}
       </select>
+      {isIsoEnterApprox && (
+        <p className="text-xs text-yellow-400 mb-1">
+          ⚠ ISO Enter（矩形近似）
+        </p>
+      )}
 
       {/* ── 2. Style ────────────────────────────────────────────────── */}
       <SectionTitle>Style</SectionTitle>
