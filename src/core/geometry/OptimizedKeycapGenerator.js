@@ -98,7 +98,7 @@ export class OptimizedKeycapGenerator {
 
     // 4. 拉伸设置
     const extrudeSettings = {
-      steps: 25,              // 垂直分段（影响侧面平滑度）
+      steps: this._getExtrudeSteps(), // 垂直分段（影响侧面平滑度）
       bevelEnabled: false,
       extrudePath: extrudePath,
     };
@@ -118,7 +118,6 @@ export class OptimizedKeycapGenerator {
     );
 
     // 7. 平滑法线（关键步骤！）
-    geometry.computeVertexNormals();
     this._smoothNormals(geometry, CHERRY_SMOOTH_ANGLE);
 
     // 8. 创建高质量材质
@@ -154,6 +153,14 @@ export class OptimizedKeycapGenerator {
     
     // 限制范围
     return Math.max(8, Math.min(32, segments));
+  }
+
+  /**
+   * 根据性能模式计算拉伸分段数
+   */
+  _getExtrudeSteps() {
+    const stepsMap = { fast: 8, balanced: 15, quality: 25 };
+    return stepsMap[this.performanceMode] ?? 15;
   }
 
   /**
@@ -248,84 +255,103 @@ export class OptimizedKeycapGenerator {
 
   /**
    * 平滑法线算法（类似 Blender 的 Smooth Shading）
+   * 使用类型化数组和预分配向量，避免循环内对象分配
    */
   _smoothNormals(geometry, angleThresholdDeg = 30) {
-    const angleThreshold = THREE.MathUtils.degToRad(angleThresholdDeg);
-    const thresholdDot = Math.cos(angleThreshold);
-    
+    const thresholdDot = Math.cos(THREE.MathUtils.degToRad(angleThresholdDeg));
+
     const positions = geometry.attributes.position;
-    const normals = geometry.attributes.normal;
     const indices = geometry.index;
-    
+
     if (!indices) {
       console.warn('Geometry is not indexed, skipping smooth normals');
       return;
     }
 
-    // 第一步：计算每个面的法线
-    const faceNormals = [];
+    const posCount = positions.count;
     const faceCount = indices.count / 3;
-    
+
+    // 第一步：计算每个面的法线，复用 Vector3 实例，结果存入 Float32Array
+    const faceNormals = new Float32Array(faceCount * 3);
+    const p0 = new THREE.Vector3(), p1 = new THREE.Vector3(), p2 = new THREE.Vector3();
+    const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), fn = new THREE.Vector3();
+
     for (let i = 0; i < faceCount; i++) {
       const i0 = indices.getX(i * 3);
       const i1 = indices.getX(i * 3 + 1);
       const i2 = indices.getX(i * 3 + 2);
-      
-      const v0 = new THREE.Vector3().fromBufferAttribute(positions, i0);
-      const v1 = new THREE.Vector3().fromBufferAttribute(positions, i1);
-      const v2 = new THREE.Vector3().fromBufferAttribute(positions, i2);
-      
-      const edge1 = new THREE.Vector3().subVectors(v1, v0);
-      const edge2 = new THREE.Vector3().subVectors(v2, v0);
-      const faceNormal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
-      
-      faceNormals.push(faceNormal);
+
+      p0.fromBufferAttribute(positions, i0);
+      p1.fromBufferAttribute(positions, i1);
+      p2.fromBufferAttribute(positions, i2);
+
+      e1.subVectors(p1, p0);
+      e2.subVectors(p2, p0);
+      fn.crossVectors(e1, e2).normalize();
+
+      faceNormals[i * 3]     = fn.x;
+      faceNormals[i * 3 + 1] = fn.y;
+      faceNormals[i * 3 + 2] = fn.z;
     }
 
-    // 第二步：为每个顶点平均相邻面的法线
-    const vertexFaceMap = new Map();
-    
+    // 第二步：用 CSR 格式构建顶点→面的邻接表（避免 Map 和动态数组）
+    const counts = new Int32Array(posCount);
+    for (let i = 0; i < indices.count; i++) {
+      counts[indices.getX(i)]++;
+    }
+    const offsets = new Int32Array(posCount + 1);
+    for (let i = 0; i < posCount; i++) {
+      offsets[i + 1] = offsets[i] + counts[i];
+    }
+    const faceList = new Int32Array(offsets[posCount]);
+    const fill = new Int32Array(posCount);
     for (let i = 0; i < faceCount; i++) {
-      const i0 = indices.getX(i * 3);
-      const i1 = indices.getX(i * 3 + 1);
-      const i2 = indices.getX(i * 3 + 2);
-      
-      [i0, i1, i2].forEach(vertexIndex => {
-        if (!vertexFaceMap.has(vertexIndex)) {
-          vertexFaceMap.set(vertexIndex, []);
-        }
-        vertexFaceMap.get(vertexIndex).push(i);
-      });
+      for (let j = 0; j < 3; j++) {
+        const v = indices.getX(i * 3 + j);
+        faceList[offsets[v] + fill[v]++] = i;
+      }
     }
 
-    // 第三步：计算平滑后的法线
-    const smoothedNormals = new Float32Array(normals.count * 3);
-    
-    for (let i = 0; i < positions.count; i++) {
-      const adjacentFaces = vertexFaceMap.get(i) || [];
-      const avgNormal = new THREE.Vector3();
-      
-      if (adjacentFaces.length === 0) continue;
-      
-      const baseNormal = faceNormals[adjacentFaces[0]];
-      
-      adjacentFaces.forEach(faceIndex => {
-        const faceNormal = faceNormals[faceIndex];
-        
-        // 只平均角度接近的面
-        if (baseNormal.dot(faceNormal) > thresholdDot) {
-          avgNormal.add(faceNormal);
+    // 第三步：用标量运算累加平滑法线（无 Vector3 分配）
+    // 对于合法的 ExtrudeGeometry，每个顶点必定至少被一个面引用，
+    // 所以 start === end 分支不会触发，zero-init 是安全的。
+    const smoothed = new Float32Array(posCount * 3);
+
+    for (let i = 0; i < posCount; i++) {
+      const start = offsets[i];
+      const end   = offsets[i + 1];
+      if (start === end) continue;
+
+      const f0 = faceList[start];
+      const bx = faceNormals[f0 * 3];
+      const by = faceNormals[f0 * 3 + 1];
+      const bz = faceNormals[f0 * 3 + 2];
+
+      let nx = 0, ny = 0, nz = 0;
+      for (let j = start; j < end; j++) {
+        const fi = faceList[j];
+        const fx = faceNormals[fi * 3];
+        const fy = faceNormals[fi * 3 + 1];
+        const fz = faceNormals[fi * 3 + 2];
+        if (bx * fx + by * fy + bz * fz > thresholdDot) {
+          nx += fx; ny += fy; nz += fz;
         }
-      });
-      
-      avgNormal.normalize();
-      
-      smoothedNormals[i * 3] = avgNormal.x;
-      smoothedNormals[i * 3 + 1] = avgNormal.y;
-      smoothedNormals[i * 3 + 2] = avgNormal.z;
+      }
+
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      if (len > 0) {
+        smoothed[i * 3]     = nx / len;
+        smoothed[i * 3 + 1] = ny / len;
+        smoothed[i * 3 + 2] = nz / len;
+      } else {
+        // All neighbours filtered by threshold — fall back to the base face normal
+        smoothed[i * 3]     = bx;
+        smoothed[i * 3 + 1] = by;
+        smoothed[i * 3 + 2] = bz;
+      }
     }
-    
-    geometry.setAttribute('normal', new THREE.BufferAttribute(smoothedNormals, 3));
+
+    geometry.setAttribute('normal', new THREE.BufferAttribute(smoothed, 3));
   }
 
   /**
