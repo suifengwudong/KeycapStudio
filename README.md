@@ -1,19 +1,134 @@
 # KeycapStudio
 
-> 在浏览器中实时预览并导出 STL。**3D 预览与 STL 导出完全解耦：调参时仅运行轻量外壳计算，CSG 仅在点击 Export STL 时触发。**
+> Design keycap legends in 2D, export production-ready PNG / SVG, and generate Cherry MX-compatible STL files for 3D printing — all in one browser-based tool.
 
 ---
 
-## 项目定位
+## V1 – 2D Design Tool (current)
 
-KeycapStudio 是一个**单一用途、轻量级**的 3D 键帽参数化生成工具，专注于：
+### Quick start
 
-- 生成符合 **Cherry MX 轴座规格**的键帽几何体
-- 支持 **Cherry Profile**（主力）及 SA / DSA / OEM（轮廓待完善）
-- 在浏览器中实时 3D 预览，参数变化后自动更新模型
-- 一键**导出 STL 文件**，可直接送入切片软件（Bambu Studio、Cura 等）打印
+```bash
+npm install
+npm run dev
+```
 
-**不做的事：** 不做整套键盘布局编辑、不做固件烧录、不做纹理贴图渲染管线、不做 STEP/OBJ 导出。
+Open `http://localhost:5173`. The app opens in **2D Design** mode by default.
+
+### Workflow
+
+```
+New / Open  →  Set preset + style  →  Edit legends  →  Position  →  Export
+```
+
+1. **New / Open project** — use the toolbar to create a fresh keycap or load an existing `.keycap` file.
+2. **Choose a size preset** — Inspector → *Size Preset*: `1u`, `1.25u`, `1.5u`, `2u`, `Shift (2.25u)`, `Enter (2.25u)`.
+3. **Set style** — background colour, outline toggle + colour + thickness slider.
+4. **Edit legends** — four legend slots: *Main*, *Top-Left*, *Bottom-Right*, *Left*.  
+   Each can be independently enabled/disabled with its own text, colour, font, and font size.
+5. **Position legends** — drag legend handles on the canvas, use **Arrow keys** (1 px nudge) or **Shift+Arrows** (8 px nudge), or type exact X/Y fractions in the inspector.  
+   Click *Center main legend* to snap the main legend to the keycap centre.
+6. **Zoom** — scroll wheel on canvas, or use the `+` / `−` / `Reset` controls in the canvas corner.
+7. **Save** — *Save* button downloads a `.keycap` JSON file (see [File Format](#file-format)).
+8. **Export** — *Export ▾* dropdown:
+   - **PNG 2× / 4×** (opaque or transparent background)
+   - **SVG** (opaque or transparent background)
+
+### Undo / Redo
+
+Full undo/redo history (up to 100 steps) for all edits: text, position, colours, preset changes.  
+Click **↩ Undo** / **↪ Redo** in the toolbar, or use `Ctrl+Z` / `Ctrl+Y`.
+
+### Autosave & Crash Recovery
+
+The app autosaves your project to `localStorage` every 30 seconds.  
+On the next launch, if an unsaved autosave is detected, you will be offered the option to restore it.
+
+### 3D Preview
+
+Switch to **3D Preview** mode with the mode toggle in the top-right corner to see the Cherry Profile 3D model and export an STL for 3D printing.
+
+---
+
+## File Format
+
+Projects are saved as **`.keycap`** files — plain UTF-8 JSON.
+
+```json
+{
+  "version": 1,
+  "keycap": {
+    "preset": "1u",
+    "bgColor": "#e0e0e0",
+    "outlineEnabled": true,
+    "outlineColor": "#555555",
+    "outlineThickness": 2
+  },
+  "legends": {
+    "main":        { "enabled": true,  "text": "A",  "x": 0,    "y": 0,    "font": "Arial", "fontSize": 24, "color": "#111111" },
+    "topLeft":     { "enabled": false, "text": "",   "x": -0.3, "y": -0.3, "font": "Arial", "fontSize": 11, "color": "#111111" },
+    "bottomRight": { "enabled": false, "text": "",   "x": 0.3,  "y": 0.3,  "font": "Arial", "fontSize": 11, "color": "#111111" },
+    "left":        { "enabled": false, "text": "",   "x": -0.3, "y": 0,    "font": "Arial", "fontSize": 11, "color": "#111111" }
+  }
+}
+```
+
+| Field | Description |
+|---|---|
+| `version` | Schema version (currently `1`) |
+| `keycap.preset` | Size preset key (`1u`, `1.25u`, `1.5u`, `2u`, `Shift`, `Enter`) |
+| `keycap.bgColor` | Background fill colour (hex) |
+| `keycap.outlineEnabled` | Whether to draw an outline stroke |
+| `keycap.outlineColor` | Outline stroke colour (hex) |
+| `keycap.outlineThickness` | Stroke thickness in canvas pixels |
+| `legends.<slot>.x` / `.y` | Position offset from centre, as fraction of keycap width/height (range −0.5 … +0.5) |
+
+A sample project is provided in [`examples/demo.keycap`](examples/demo.keycap).
+
+---
+
+## Export Behaviour
+
+| Format | Scale | Dimensions (1u) |
+|---|---|---|
+| PNG 2× | ×2 | 108 × 108 px |
+| PNG 4× | ×4 | 216 × 216 px |
+| SVG | ×1 (vector) | 54 × 54 px viewBox |
+
+Dimensions scale proportionally with the preset's `widthUnits`:
+
+| Preset | Width units | PNG 2× width |
+|---|---|---|
+| 1u | 1.0 | 108 px |
+| 1.25u | 1.25 | 135 px |
+| 1.5u | 1.5 | 162 px |
+| 2u | 2.0 | 216 px |
+| Shift / Enter | 2.25 | 243 px |
+
+---
+
+## Running Tests
+
+```bash
+npm test
+```
+
+Tests cover: model serialisation round-trip, undo/redo stack, export dimension calculations, and SVG generation correctness.
+
+---
+
+## V0 – 3D STL Generator (original)
+
+> 在浏览器中实时预览并导出 STL。**3D 预览与 STL 导出完全解耦：调参时仅运行轻量外壳计算，CSG 仅在点击 Export STL 时触发。**
+
+Switch to **3D Preview** mode in the app to access the original 3D tool.
+
+### 功能范围（3D 模式）
+
+- ✅ Cherry Profile 键帽几何体生成（梯形轮廓 + 顶部球面内凹）
+- ✅ Cherry MX 十字轴孔（4.15 × 1.35 mm，深 4.0 mm）
+- ✅ 多尺寸支持（1u / 1.25u / 1.5u / 1.75u / 2u / 2.25u / 2.75u / 6.25u / ISO-Enter）
+- ✅ 导出 STL（二进制格式）
 
 ---
 
@@ -22,69 +137,12 @@ KeycapStudio 是一个**单一用途、轻量级**的 3D 键帽参数化生成�
 | 层级 | 技术 |
 |------|------|
 | UI 框架 | React 18 + Tailwind CSS |
-| 3D 渲染 | Three.js + @react-three/fiber + @react-three/drei |
+| 2D 预览 | HTML5 Canvas |
+| 3D 渲染 | Three.js + @react-three/fiber |
 | CSG 布尔运算 | three-csg-ts |
-| 状态管理 | Zustand（含 localStorage 持久化） |
+| 状态管理 | Zustand |
+| 测试 | Vitest |
 | 构建工具 | Vite |
-
----
-
-## 功能范围
-
-### 已实现
-- ✅ **预览 / 导出解耦**：调参时仅生成轻量外壳（无 CSG），点击 Export STL 时才执行完整 CSG
-- ✅ Cherry Profile 键帽几何体生成（梯形轮廓 + 顶部球面内凹）
-- ✅ Cherry MX 十字轴孔（4.15 × 1.35 mm，深 4.0 mm）
-- ✅ 参数化壁厚（内腔挖空）
-- ✅ 多尺寸支持（1u / 1.25u / 1.5u / 1.75u / 2u / 2.25u / 2.75u / 6.25u / ISO-Enter）
-- ✅ 颜色调节（不触发重新生成几何体）
-- ✅ LRU 几何体缓存（避免重复 CSG 计算）
-- ✅ **导出 STL**（二进制格式，文件名含 profile/size 信息，如 `Cherry-1u.stl`）
-- ✅ 3D 轨道相机控制
-
-### 暂不支持
-- ⬜ SA / DSA / OEM 精确轮廓（界面可选，几何体尚未定制）
-- ⬜ 键帽图例（刻字/UV 打印）
-- ⬜ Watertight 验证（导出时仅提示，不阻塞）
-- ⬜ Web Worker 多线程生成
-
----
-
-## 参数说明
-
-| 参数 | 单位 | 范围 | 说明 |
-|------|------|------|------|
-| `profile` | — | Cherry / SA / DSA / OEM | 键帽轮廓 |
-| `size` | — | 1u … 6.25u / ISO-Enter | 键帽横向尺寸 |
-| `color` | hex | — | 表面颜色（仅影响材质，不触发 CSG） |
-| `topRadius` | mm | 0.1 – 3.0 | 键帽横截面圆角半径（影响底部至顶部全体圆角，数值越大四角越圆润） |
-| `wallThickness` | mm | 0.8 – 3.5 | 键帽侧壁厚度（内腔偏移量） |
-| `hasStem` | bool | — | 是否包含 Cherry MX 十字轴孔 |
-
-> ⚠️ 参数在生成器入口处会被 clamp 到安全范围，防止 CSG 运算崩溃。
-
----
-
-## 使用方式
-
-### 在线预览（本地开发）
-
-```bash
-# 安装依赖
-npm install
-
-# 启动开发服务器
-npm run dev
-```
-
-浏览器打开 `http://localhost:5173`，左侧/右侧面板调节参数，中间实时显示键帽 3D 模型。
-
-### 导出 STL
-
-1. 等待右侧 3D 视图加载完成（加载中指示消失）
-2. 点击顶部右侧 **Export STL** 按钮
-3. 浏览器自动下载文件（如 `Cherry-1u.stl`）
-4. 用 PrusaSlicer / Bambu Studio / Cura 打开即可切片打印
 
 ---
 
@@ -94,44 +152,37 @@ npm run dev
 src/
 ├── components/
 │   ├── canvas/
-│   │   ├── Scene3D.jsx        # Three.js Canvas 容器
-│   │   └── Keycap.jsx         # 键帽组件（异步生成 + 上报 geometry）
+│   │   ├── KeycapCanvas2D.jsx   # 2D canvas (drag, zoom, nudge)
+│   │   ├── Scene3D.jsx          # Three.js 3D canvas
+│   │   └── Keycap.jsx           # 3D keycap mesh
 │   ├── layout/
-│   │   └── Header.jsx         # 顶部工具栏（含 Export STL 按钮）
+│   │   ├── DesignHeader.jsx     # V1 toolbar (new/open/save/export/undo/redo)
+│   │   └── ...
 │   └── panels/
-│       └── ParameterEditor.jsx # 参数面板（Slider / ColorPicker）
+│       ├── InspectorPanel.jsx   # V1 left panel (preset/style/legends/font/position)
+│       └── ParameterEditor.jsx  # 3D parameter editor
 ├── constants/
-│   └── profiles.js            # Cherry/SA/DSA/OEM 轮廓数据 & 尺寸表
+│   └── profiles.js              # Cherry/SA/DSA/OEM profile data & size table
 ├── core/
 │   ├── export/
-│   │   ├── STLExporter.js     # 导出入口（调用 Three.js STLExporter）
-│   │   └── PrintValidator.js  # 轻量提示系统（warnings，不阻塞导出）
-│   └── geometry/
-│       ├── OptimizedKeycapGenerator.js  # ✅ 唯一权威几何生成器
-│       │   ├── generatePreview()        #   快速外壳（无 CSG），用于实时预览
-│       │   └── generate()              #   完整 CSG（挖空 + 轴孔），仅导出时调用
-│       ├── AsyncKeycapGenerator.js      # 异步包装 + LRU 缓存（预览/导出各自独立缓存）
-│       ├── generatorInstance.js         # 共享单例（Keycap + Header + PerformanceSettings 共用）
-│       └── legacy/
-│           └── KeycapGenerator.js       # 旧版生成器（已废弃，仅供参考）
+│   │   ├── PNGExporter.js       # PNG export (2×/4×, optional transparent bg)
+│   │   ├── SVGExporter.js       # SVG export
+│   │   ├── STLExporter.js       # STL export (3D mode)
+│   │   └── export.test.js       # Export dimension + SVG tests
+│   ├── geometry/                # 3D geometry generators
+│   ├── io/
+│   │   └── projectIO.js         # Open/save .keycap files + autosave
+│   └── model/
+│       ├── projectModel.js      # V1 data model + serialisation
+│       └── projectModel.test.js # Model tests
 ├── store/
-│   └── keycapStore.js         # Zustand store（params + currentGeometry）
-└── workers/
-    └── KeycapGeneratorCore.js # Worker 版本（实验性）
+│   ├── projectStore.js          # V1 Zustand store (undo/redo, autosave)
+│   ├── projectStore.test.js     # Undo/redo tests
+│   └── keycapStore.js           # 3D parameter store
+└── ...
+examples/
+└── demo.keycap                  # Sample project file
 ```
-
-> **生成路径一览：**
-> - **实时预览**：`Slider/Dropdown 变化` → `Zustand store` → `Keycap.jsx` → `generatePreviewAsync()` → 外壳网格（无 CSG）
-> - **导出 STL**：`点击 Export STL` → `Header.jsx` → `generateAsync()` → 完整 CSG 网格 → 下载文件
-
----
-
-## 已知限制
-
-1. **非 Watertight**：CSG 运算生成的网格不保证完全封闭，部分切片软件需要开启"修复网格"选项。
-2. **SA / DSA / OEM 轮廓**：目前使用与 Cherry 相同的几何体生成，轮廓差异尚未实现。
-3. **大尺寸键帽（≥2.25u）**：导出 STL 时 CSG 耗时较长（200–800ms），导出按钮会显示"生成中..."提示，属正常现象。预览为轻量外壳，不受影响。
-4. **浏览器兼容**：需要 WebGL2 支持（Chrome 90+ / Firefox 90+ / Safari 15+）。
 
 ---
 
@@ -141,23 +192,5 @@ src/
 - [x] **v0.2** 参数化 UI + LRU 缓存
 - [x] **v0.3** STL 导出闭环 + README 完善
 - [x] **v0.4** 预览/导出解耦（无 CSG 实时预览 + 按需 CSG 导出）
-- [ ] **v0.5** 键帽图例（文字刻印）
-- [ ] **v1.0** Web Worker 生成 + 完整测试覆盖
-
----
-
-## 发布与部署
-
-所有发布相关的文件和二进制包位于 `releases/` 文件夹中。
-
-### 自动化发布
-运行以下命令进行自动化发布：
-```bash
-npm run release
-```
-
-这将构建项目、创建发布包并使用 GitHub CLI 创建发布。
-
-### 手动发布
-详情请参考 [`releases/README.md`](releases/README.md)。
+- [x] **v1.0** 2D 设计工具：尺寸预设、样式、图例、字体、位置、PNG/SVG 导出、.keycap 文件格式、撤销/重做、自动保存
 
