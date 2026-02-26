@@ -101,11 +101,12 @@ export function defaultLegend2d() {
 /** Create a brand-new default KCS document. */
 export function createDefaultKcsDocument() {
   return {
-    format  : KCS_FORMAT,
-    version : KCS_VERSION,
-    asset   : { name: 'New Project' },
-    shape3d : defaultShape3d(),
-    legend2d: defaultLegend2d(),
+    format    : KCS_FORMAT,
+    version   : KCS_VERSION,
+    asset     : { name: 'New Project' },
+    shape3d   : defaultShape3d(),
+    legend2d  : defaultLegend2d(),
+    uiContext : { mode: '3d', selectedLegend: 'main' },
   };
 }
 
