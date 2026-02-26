@@ -78,6 +78,13 @@ describe('createDefaultKcsDocument', () => {
     expect(doc.legend2d.legends.bottomRight.enabled).toBe(false);
     expect(doc.legend2d.legends.left.enabled).toBe(false);
   });
+
+  it('has a uiContext with default mode and selectedLegend', () => {
+    const doc = createDefaultKcsDocument();
+    expect(doc.uiContext).toBeDefined();
+    expect(doc.uiContext.mode).toBe('3d');
+    expect(doc.uiContext.selectedLegend).toBe('main');
+  });
 });
 
 // ─── validateKcsDocument ─────────────────────────────────────────────────────
@@ -320,25 +327,31 @@ describe('sizeToPreset', () => {
     expect(sizeToPreset('2u')).toBe('2u');
   });
 
-  it('maps 2.25u to Shift preset', () => {
-    expect(sizeToPreset('2.25u')).toBe('Shift');
+  it('maps 2.25u to 2.25u preset (canonical key)', () => {
+    expect(sizeToPreset('2.25u')).toBe('2.25u');
   });
 
-  it('maps ISO-Enter to Enter preset', () => {
-    expect(sizeToPreset('ISO-Enter')).toBe('Enter');
+  it('maps ISO-Enter to 2.25u (rectangular approximation)', () => {
+    expect(sizeToPreset('ISO-Enter')).toBe('2.25u');
   });
 
-  it('returns null for sizes without a 2D equivalent', () => {
-    expect(sizeToPreset('6.25u')).toBeNull();
+  it('maps 1.75u, 6.25u, 7u to their own presets', () => {
+    expect(sizeToPreset('1.75u')).toBe('1.75u');
+    expect(sizeToPreset('6.25u')).toBe('6.25u');
+    expect(sizeToPreset('7u')).toBe('7u');
+  });
+
+  it('returns null for unknown sizes', () => {
     expect(sizeToPreset('2.75u')).toBeNull();
-    expect(sizeToPreset('1.75u')).toBeNull();
     expect(sizeToPreset('unknown')).toBeNull();
   });
 
   it('SIZE_TO_2D_PRESET covers all expected direct mappings', () => {
     expect(SIZE_TO_2D_PRESET['1u']).toBe('1u');
-    expect(SIZE_TO_2D_PRESET['2.25u']).toBe('Shift');
-    expect(SIZE_TO_2D_PRESET['ISO-Enter']).toBe('Enter');
+    expect(SIZE_TO_2D_PRESET['2.25u']).toBe('2.25u');
+    expect(SIZE_TO_2D_PRESET['ISO-Enter']).toBe('2.25u');
+    expect(SIZE_TO_2D_PRESET['6.25u']).toBe('6.25u');
+    expect(SIZE_TO_2D_PRESET['7u']).toBe('7u');
   });
 });
 
@@ -355,5 +368,16 @@ describe('validateKcsDocument – legacy name migration', () => {
     };
     const validated = validateKcsDocument(doc);
     expect(validated.asset.name).toBe('Old Style Name');
+  });
+
+  it('accepts documents without uiContext (backward-compatible)', () => {
+    const doc = {
+      format  : KCS_FORMAT,
+      version : KCS_VERSION,
+      asset   : { name: 'Old Doc' },
+      shape3d : defaultShape3d(),
+      legend2d: defaultLegend2d(),
+    };
+    expect(() => validateKcsDocument(doc)).not.toThrow();
   });
 });

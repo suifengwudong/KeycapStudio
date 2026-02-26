@@ -132,6 +132,25 @@ export const useAssetStore = create((set, get) => ({
     writeKcsAutosave(clone(updatedAsset));
   },
 
+  // ── UI context ────────────────────────────────────────────────────────────
+
+  /**
+   * Update the UI context (mode, selectedLegend) stored in the asset.
+   * This is persisted to the autosave so crash recovery can restore the view.
+   *
+   * @param {{ mode?: string, selectedLegend?: string }} partial
+   */
+  setUiContext(partial) {
+    const { asset } = get();
+    const prevCtx = asset.uiContext ?? { mode: '3d', selectedLegend: 'main' };
+    const updatedAsset = {
+      ...asset,
+      uiContext: { ...prevCtx, ...partial },
+    };
+    set({ asset: clone(updatedAsset) });
+    writeKcsAutosave(clone(updatedAsset));
+  },
+
   // ── Mark saved ────────────────────────────────────────────────────────────
 
   markSaved() { set({ isDirty: false }); },

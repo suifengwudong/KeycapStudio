@@ -6,10 +6,14 @@ import Scene3D        from './components/canvas/Scene3D';
 import Outliner       from './components/panels/Outliner';
 import NodeInspector  from './components/panels/NodeInspector';
 import { useAssetStore, readKcsAutosave } from './store/assetStore';
+import { useProjectStore } from './store/projectStore';
+import { startKcsAutosave, stopKcsAutosave } from './core/io/kcsIO';
 
 export default function App() {
   const [mode, setMode] = useState('3d'); // start in Shape (3D) – step 1 of the flow
-  const loadAsset = useAssetStore(s => s.loadAsset);
+  const loadAsset         = useAssetStore(s => s.loadAsset);
+  const setUiContext      = useAssetStore(s => s.setUiContext);
+  const setSelectedLegend = useProjectStore(s => s.setSelectedLegend);
 
   // Crash-recovery: offer to restore autosave on first launch
   useEffect(() => {
@@ -18,9 +22,28 @@ export default function App() {
       const restore = window.confirm(
         'An unsaved project was found. Restore it?'
       );
-      if (restore) loadAsset(saved, { resetDirty: true });
+      if (restore) {
+        loadAsset(saved, { resetDirty: true });
+        // Restore UI context (mode + selected legend)
+        const ctx = saved.uiContext;
+        if (ctx) {
+          if (ctx.mode) setMode(ctx.mode);
+          if (ctx.selectedLegend) setSelectedLegend(ctx.selectedLegend);
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist mode to uiContext whenever it changes
+  useEffect(() => {
+    setUiContext({ mode });
+  }, [mode, setUiContext]);
+
+  // 30-second periodic autosave (safety net on top of on-change writes)
+  useEffect(() => {
+    startKcsAutosave(() => useAssetStore.getState().asset);
+    return () => stopKcsAutosave();
   }, []);
 
   return (

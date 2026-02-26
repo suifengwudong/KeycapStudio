@@ -11,6 +11,8 @@
  * File format: .kcs.json  (JSON, UTF-8)
  */
 
+import { SIZE_TO_PRESET, mapSizeToPreset } from './sizeMapping.js';
+
 export const KCS_FORMAT  = 'kcs';
 export const KCS_VERSION = 1;
 
@@ -18,28 +20,23 @@ export const KCS_VERSION = 1;
 
 /**
  * Map from 3D `shape3d.params.size` values to 2D `legend2d.keycap.preset` keys.
- * Sizes with no direct 2D equivalent are not included; `sizeToPreset` returns `null`
- * for those (the caller should show a "2D does not support this size" notice).
+ * ISO-Enter is approximated as '2.25u' in V1.1.
+ *
+ * @deprecated Import from sizeMapping.js directly; this re-export exists for
+ *   backward compatibility with code that imports from kcsDocument.
  */
-export const SIZE_TO_2D_PRESET = {
-  '1u'       : '1u',
-  '1.25u'    : '1.25u',
-  '1.5u'     : '1.5u',
-  '2u'       : '2u',
-  '2.25u'    : 'Shift',
-  'ISO-Enter': 'Enter',
-};
+export const SIZE_TO_2D_PRESET = SIZE_TO_PRESET;
 
 /**
  * Derive the 2D preset key from a 3D size string.
- * Returns `null` (no direct match) when the size has no 2D preset equivalent;
- * the caller can then show a "2D does not support this size" notice.
+ * ISO-Enter is approximated as '2.25u'.
+ * Returns null for unknown sizes.
  *
- * @param {string} size  – e.g. '1u', '2.25u', '6.25u'
+ * @param {string} size  – e.g. '1u', '2.25u', 'ISO-Enter'
  * @returns {string|null}
  */
 export function sizeToPreset(size) {
-  return SIZE_TO_2D_PRESET[size] ?? null;
+  return mapSizeToPreset(size);
 }
 
 // ─── Default shape3d params ──────────────────────────────────────────────────
@@ -104,11 +101,12 @@ export function defaultLegend2d() {
 /** Create a brand-new default KCS document. */
 export function createDefaultKcsDocument() {
   return {
-    format  : KCS_FORMAT,
-    version : KCS_VERSION,
-    asset   : { name: 'New Project' },
-    shape3d : defaultShape3d(),
-    legend2d: defaultLegend2d(),
+    format    : KCS_FORMAT,
+    version   : KCS_VERSION,
+    asset     : { name: 'New Project' },
+    shape3d   : defaultShape3d(),
+    legend2d  : defaultLegend2d(),
+    uiContext : { mode: '3d', selectedLegend: 'main' },
   };
 }
 
@@ -140,6 +138,17 @@ export function validateKcsDocument(raw) {
   // Migrate legacy top-level `name` into `asset.name`
   if (!raw.asset || typeof raw.asset !== 'object') {
     raw = { ...raw, asset: { name: raw.name ?? 'Project' } };
+  }
+  // Migrate legacy preset aliases ('Shift'/'Enter') → '2.25u'
+  const preset = raw.legend2d.keycap.preset;
+  if (preset === 'Shift' || preset === 'Enter') {
+    raw = {
+      ...raw,
+      legend2d: {
+        ...raw.legend2d,
+        keycap: { ...raw.legend2d.keycap, preset: '2.25u' },
+      },
+    };
   }
   return raw;
 }
