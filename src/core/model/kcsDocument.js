@@ -14,6 +14,34 @@
 export const KCS_FORMAT  = 'kcs';
 export const KCS_VERSION = 1;
 
+// ─── Size → 2D preset mapping ────────────────────────────────────────────────
+
+/**
+ * Map from 3D `shape3d.params.size` values to 2D `legend2d.keycap.preset` keys.
+ * Sizes with no direct 2D equivalent are not included; `sizeToPreset` returns `null`
+ * for those (the caller should show a "2D does not support this size" notice).
+ */
+export const SIZE_TO_2D_PRESET = {
+  '1u'       : '1u',
+  '1.25u'    : '1.25u',
+  '1.5u'     : '1.5u',
+  '2u'       : '2u',
+  '2.25u'    : 'Shift',
+  'ISO-Enter': 'Enter',
+};
+
+/**
+ * Derive the 2D preset key from a 3D size string.
+ * Returns `null` (no direct match) when the size has no 2D preset equivalent;
+ * the caller can then show a "2D does not support this size" notice.
+ *
+ * @param {string} size  – e.g. '1u', '2.25u', '6.25u'
+ * @returns {string|null}
+ */
+export function sizeToPreset(size) {
+  return SIZE_TO_2D_PRESET[size] ?? null;
+}
+
 // ─── Default shape3d params ──────────────────────────────────────────────────
 
 /** Default 3D shape parameters (mirrors keycapStore initial params). */
@@ -78,7 +106,7 @@ export function createDefaultKcsDocument() {
   return {
     format  : KCS_FORMAT,
     version : KCS_VERSION,
-    name    : 'New Project',
+    asset   : { name: 'New Project' },
     shape3d : defaultShape3d(),
     legend2d: defaultLegend2d(),
   };
@@ -109,6 +137,10 @@ export function validateKcsDocument(raw) {
     throw new Error('Invalid KCS document: missing legend2d');
   if (!raw.legend2d.keycap || !raw.legend2d.legends)
     throw new Error('Invalid KCS document: missing legend2d.keycap or legend2d.legends');
+  // Migrate legacy top-level `name` into `asset.name`
+  if (!raw.asset || typeof raw.asset !== 'object') {
+    raw = { ...raw, asset: { name: raw.name ?? 'Project' } };
+  }
   return raw;
 }
 
@@ -149,7 +181,7 @@ export function buildKcsDocument(shape3dParams, project, name = 'New Project') {
   return {
     format  : KCS_FORMAT,
     version : KCS_VERSION,
-    name,
+    asset   : { name },
     shape3d : {
       engine: 'keycap-param-v1',
       params: { ...shape3dParams },
