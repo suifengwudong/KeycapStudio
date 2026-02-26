@@ -289,21 +289,6 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport }) 
 
       {/* Stage indicator */}
       <StageIndicator mode={mode} />
-
-      {/* Spacer */}
-      <span className="w-4" />
-
-      {/* Mode toggle */}
-      <div className="flex rounded overflow-hidden border border-gray-600 text-xs">
-        <button
-          className={`px-3 py-1 ${mode === '2d' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-          onClick={() => setMode('2d')}
-        >2D Design</button>
-        <button
-          className={`px-3 py-1 ${mode === '3d' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-          onClick={() => setMode('3d')}
-        >3D Modeling</button>
-      </div>
     </header>
   );
 }
