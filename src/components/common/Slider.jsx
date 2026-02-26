@@ -11,16 +11,12 @@ export default function Slider({ label, min, max, step, value, onChange, unit })
     }
   }, [value, isDragging]);
 
+  // 拖动时实时触发 onChange（预览为无 CSG 轻量计算，足够快）
   const handleChange = (e) => {
-    setLocalValue(parseFloat(e.target.value));
+    const newValue = parseFloat(e.target.value);
+    setLocalValue(newValue);
     setIsDragging(true);
-  };
-
-  const handleCommit = () => {
-    setIsDragging(false);
-    if (localValue !== value) {
-        onChange(localValue);
-    }
+    onChange(newValue);
   };
 
   return (
@@ -39,8 +35,8 @@ export default function Slider({ label, min, max, step, value, onChange, unit })
         step={step}
         value={localValue}
         onChange={handleChange}
-        onMouseUp={handleCommit}
-        onTouchEnd={handleCommit}
+        onMouseUp={() => setIsDragging(false)}
+        onTouchEnd={() => setIsDragging(false)}
         className="w-full"
       />
     </div>

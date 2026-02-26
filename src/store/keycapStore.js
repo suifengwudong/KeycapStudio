@@ -41,10 +41,6 @@ export const useKeycapStore = create(
         // ...
       },
 
-      // 当前键帽几何体引用（非持久化，用于STL导出）
-      currentGeometry: null,
-      setCurrentGeometry: (geometry) => set({ currentGeometry: geometry }),
-
       // 性能统计（非持久化）
       performanceStats: { fps: 60, frameTime: '16.67' },
       setPerformanceStats: (stats) => set({ performanceStats: stats }),
