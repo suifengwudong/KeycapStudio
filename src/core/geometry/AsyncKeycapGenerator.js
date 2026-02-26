@@ -12,6 +12,37 @@ export class AsyncKeycapGenerator {
   }
 
   /**
+   * 异步生成预览键帽（跳过 CSG，速度快）
+   */
+  async generatePreviewAsync(params) {
+    const cacheKey = 'preview-' + this._getCacheKey(params);
+
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey);
+    }
+
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        try {
+          const mesh = this.generator.generatePreview(params);
+
+          const result = {
+            geometry: mesh.geometry,
+            material: mesh.material,
+            stemHelp: this.generator.getStemGeometry()
+          };
+
+          this._addToCache(cacheKey, result);
+          resolve(result);
+        } catch (error) {
+          console.error(' 预览生成失败:', error);
+          resolve(null);
+        }
+      }, 10);
+    });
+  }
+
+  /**
    * 异步生成键帽
    */
   async generateAsync(params) {
