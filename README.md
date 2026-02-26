@@ -92,6 +92,68 @@ Add nodes  →  Edit params  →  Arrange  →  Save Scene  →  Export STL
 
 ## File Formats
 
+### `.kcs.json` — Unified project file *(new in v1.2)*
+
+A single self-contained file that embeds **both** the 3D shape parameters and
+the 2D legend data.  Produced and consumed by `kcsDocument.js` / `kcsIO.js`.
+
+```json
+{
+  "format": "kcs",
+  "version": 1,
+  "name": "Demo – A key",
+  "shape3d": {
+    "engine": "keycap-param-v1",
+    "params": {
+      "profile": "Cherry",
+      "size": "1u",
+      "color": "#2563eb",
+      "text": "A",
+      "fontSize": 14,
+      "textDepth": 0.5,
+      "topRadius": 0.5,
+      "wallThickness": 1.5,
+      "hasStem": true,
+      "texture": "smooth",
+      "pattern": null
+    }
+  },
+  "legend2d": {
+    "keycap": {
+      "preset": "1u",
+      "bgColor": "#2563eb",
+      "outlineEnabled": true,
+      "outlineColor": "#1d4ed8",
+      "outlineThickness": 2
+    },
+    "legends": {
+      "main":        { "enabled": true,  "text": "A", "x": 0,     "y": 0,     "font": "Arial", "fontSize": 24, "color": "#ffffff" },
+      "topLeft":     { "enabled": false, "text": "",  "x": -0.28, "y": -0.28, "font": "Arial", "fontSize": 11, "color": "#111111" },
+      "bottomRight": { "enabled": false, "text": "",  "x":  0.28, "y":  0.28, "font": "Arial", "fontSize": 11, "color": "#111111" },
+      "left":        { "enabled": false, "text": "",  "x": -0.3,  "y":  0,    "font": "Arial", "fontSize": 11, "color": "#111111" }
+    }
+  }
+}
+```
+
+| Top-level field | Description |
+|-----------------|-------------|
+| `format` | Always `"kcs"` |
+| `version` | Schema version (currently `1`) |
+| `name` | Human-readable project name |
+| `shape3d.engine` | Always `"keycap-param-v1"` |
+| `shape3d.params` | Flat keycap geometry parameters (profile, size, color, texture, …) |
+| `legend2d.keycap` | 2D style: preset, bgColor, outline settings |
+| `legend2d.legends` | Four legend slots: main, topLeft, bottomRight, left |
+
+A complete example is in [`examples/demo.kcs.json`](examples/demo.kcs.json).
+
+The helper functions `buildKcsDocument`, `extractShape3dParams`, and
+`extractLegend2dProject` (in `kcsDocument.js`) convert between a KCS document
+and the individual store objects (`keycapStore.params` / `projectStore.project`).
+
+---
+
 ### `.keycap` — 2D legend project
 
 Plain UTF-8 JSON; produced/consumed by the 2D Design mode.
@@ -202,6 +264,7 @@ Tests cover:
 |------|----------|
 | `projectModel.test.js` | 2D model serialisation, presets |
 | `sceneDocument.test.js` | 3D scene model, node factories, tree helpers, round-trip |
+| `kcsDocument.test.js` | Unified `.kcs.json` format, validation, round-trip, conversions |
 | `export.test.js` | Export dimension calculations, SVG generation |
 | `projectStore.test.js` | Undo/redo stack, autosave |
 
@@ -252,12 +315,15 @@ src/
 │   │   ├── OptimizedKeycapGenerator.js
 │   │   └── AsyncKeycapGenerator.js
 │   ├── io/
-│   │   └── projectIO.js
+│   │   ├── projectIO.js
+│   │   └── kcsIO.js
 │   └── model/
 │       ├── projectModel.js           # 2D .keycap format
 │       ├── projectModel.test.js
 │       ├── sceneDocument.js          # 3D .kcs3d.json format
-│       └── sceneDocument.test.js
+│       ├── sceneDocument.test.js
+│       ├── kcsDocument.js            # Unified .kcs.json format
+│       └── kcsDocument.test.js
 └── store/
     ├── projectStore.js               # 2D Zustand store (undo/redo)
     ├── projectStore.test.js
@@ -265,6 +331,7 @@ src/
     └── sceneStore.js                 # 3D scene Zustand store
 examples/
 ├── demo.keycap                       # Sample 2D project
+├── demo.kcs.json                     # Sample unified project
 └── example.kcs3d.json               # Sample 3D scene document
 ```
 
@@ -278,6 +345,7 @@ examples/
 - [x] **v0.4** Preview/export pipeline split (no-CSG preview)
 - [x] **v1.0** 2D design tool: presets, legends, PNG/SVG, `.keycap` format, undo/redo, autosave
 - [x] **v1.1** 3D modeling: node-based CSG tree, Outliner, Inspector, `.kcs3d.json` format, STL export
+- [x] **v1.2** Unified `.kcs.json` project format: single file embeds `shape3d` (keycap params) + `legend2d` (2D style/legends)
 
 
 ---

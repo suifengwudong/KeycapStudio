@@ -5,20 +5,20 @@ import KeycapCanvas2D from './components/canvas/KeycapCanvas2D';
 import Scene3D        from './components/canvas/Scene3D';
 import Outliner       from './components/panels/Outliner';
 import NodeInspector  from './components/panels/NodeInspector';
-import { useProjectStore, readAutosave } from './store/projectStore';
+import { useAssetStore, readKcsAutosave } from './store/assetStore';
 
 export default function App() {
-  const [mode, setMode] = useState('2d'); // '2d' | '3d'
-  const setProject = useProjectStore(s => s.setProject);
+  const [mode, setMode] = useState('3d'); // start in Shape (3D) – step 1 of the flow
+  const loadAsset = useAssetStore(s => s.loadAsset);
 
   // Crash-recovery: offer to restore autosave on first launch
   useEffect(() => {
-    const saved = readAutosave();
+    const saved = readKcsAutosave();
     if (saved) {
       const restore = window.confirm(
         'An unsaved project was found. Restore it?'
       );
-      if (restore) setProject(saved, { resetHistory: true });
+      if (restore) loadAsset(saved, { resetDirty: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -60,3 +60,4 @@ export default function App() {
     </div>
   );
 }
+

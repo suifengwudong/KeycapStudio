@@ -1,29 +1,34 @@
 /**
- * KeycapStudio V1 – Toolbar / Header
+ * KeycapStudio – Toolbar / Header
  *
- * Buttons: New | Open | Save | Export PNG | Export SVG | Undo | Redo
- * Plus mode toggle: 2D Design ↔ 3D Preview
+ * Unified for the keycap-asset product loop:
+ *   1 Shape (3D)  →  2 Legends (2D)  →  3 Export
  *
- * 3D mode adds: Open Scene | Save Scene | Export STL
+ * File operations (all modes):
+ *   New Project | Open Project (.kcs.json) | Save Project (.kcs.json)
+ *   Legacy: Import .keycap | Export .keycap
+ *
+ * 3D mode extras:  Next: Legends →
+ * 2D mode extras:  ← Back: Shape | Export dropdown | Undo | Redo
+ * Both modes:      Export Package (STL + PNG@4x + SVG)
  */
 
 import React, { useState, useCallback } from 'react';
-import { useProjectStore, readAutosave } from '../../store/projectStore.js';
+import { useProjectStore } from '../../store/projectStore.js';
 import { useSceneStore } from '../../store/sceneStore.js';
+import { useAssetStore, readKcsAutosave } from '../../store/assetStore.js';
+import { openKcsFile, saveKcsFile } from '../../core/io/kcsIO.js';
 import { openProjectFile, saveProjectFile } from '../../core/io/projectIO.js';
 import { exportPNG } from '../../core/export/PNGExporter.js';
 import { exportSVG } from '../../core/export/SVGExporter.js';
-import {
-  serialiseScene,
-  deserialiseScene,
-  createDefaultScene,
-} from '../../core/model/sceneDocument.js';
-import { exportSceneSTL } from '../../core/csg/csgEvaluator.js';
+import { exportPackage } from '../../core/export/exportPackage.js';
 
 function ToolbarBtn({ onClick, disabled, children, title, variant = 'default' }) {
   const base  = 'px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed';
   const theme = variant === 'primary'
     ? 'bg-blue-600 hover:bg-blue-500 text-white'
+    : variant === 'success'
+    ? 'bg-green-700 hover:bg-green-600 text-white'
     : variant === 'danger'
     ? 'bg-red-700 hover:bg-red-600 text-white'
     : 'bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600';
@@ -34,43 +39,78 @@ function ToolbarBtn({ onClick, disabled, children, title, variant = 'default' })
   );
 }
 
-export default function DesignHeader({ mode, setMode }) {
-  const project  = useProjectStore(s => s.project);
-  const isDirty  = useProjectStore(s => s.isDirty);
-  const past     = useProjectStore(s => s.past);
-  const future   = useProjectStore(s => s.future);
-  const undo     = useProjectStore(s => s.undo);
-  const redo     = useProjectStore(s => s.redo);
-  const newProject  = useProjectStore(s => s.newProject);
-  const setProject  = useProjectStore(s => s.setProject);
-  const markSaved   = useProjectStore(s => s.markSaved);
+/** Slim stage indicator: 1 Shape → 2 Legends → 3 Export */
+function StageIndicator({ mode }) {
+  const steps = [
+    { key: '3d', label: '1 Shape' },
+    { key: '2d', label: '2 Legends' },
+    { key: 'export', label: '3 Export' },
+  ];
+  const activeIdx = mode === '3d' ? 0 : mode === '2d' ? 1 : 2;
+  return (
+    <div className="flex items-center gap-0 text-xs select-none">
+      {steps.map((s, i) => (
+        <React.Fragment key={s.key}>
+          <span className={`px-2 py-0.5 rounded ${activeIdx === i ? 'bg-blue-700 text-white font-semibold' : 'text-gray-400'}`}>
+            {s.label}
+          </span>
+          {i < steps.length - 1 && <span className="text-gray-600 mx-0.5">→</span>}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
 
-  const scene    = useSceneStore(s => s.scene);
-  const setScene = useSceneStore(s => s.setScene);
+export default function DesignHeader({ mode, setMode }) {
+  const project   = useProjectStore(s => s.project);
+  const isDirty2d = useProjectStore(s => s.isDirty);
+  const past      = useProjectStore(s => s.past);
+  const future    = useProjectStore(s => s.future);
+  const undo      = useProjectStore(s => s.undo);
+  const redo      = useProjectStore(s => s.redo);
+
+  const scene     = useSceneStore(s => s.scene);
+
+  const { asset, isDirty, loadAsset, newAsset, markSaved, syncLegend2dFromProject } = useAssetStore();
+  const assetName = asset?.asset?.name ?? 'New Project';
 
   const [exportOpen, setExportOpen] = useState(false);
+  const [legacyOpen, setLegacyOpen] = useState(false);
 
-  // ── 2D handlers ────────────────────────────────────────────────────────────
+  // ── Unified project handlers ──────────────────────────────────────────────
 
   const handleNew = useCallback(() => {
     if (isDirty && !window.confirm('Discard unsaved changes?')) return;
-    newProject();
-  }, [isDirty, newProject]);
+    newAsset();
+  }, [isDirty, newAsset]);
 
-  const handleOpen = useCallback(async () => {
+  const handleOpenProject = useCallback(async () => {
     if (isDirty && !window.confirm('Discard unsaved changes?')) return;
     try {
-      const loaded = await openProjectFile();
-      setProject(loaded, { resetHistory: true });
+      const doc = await openKcsFile();
+      loadAsset(doc, { resetDirty: true });
     } catch (e) {
       if (e.message !== 'No file selected') alert(`Open failed: ${e.message}`);
     }
-  }, [isDirty, setProject]);
+  }, [isDirty, loadAsset]);
 
-  const handleSave = useCallback(() => {
-    saveProjectFile(project);
+  const handleSaveProject = useCallback(() => {
+    // Sync 2D edits into asset before saving, then read the updated state
+    syncLegend2dFromProject();
+    // Re-read from store to get the just-synced asset
+    saveKcsFile(useAssetStore.getState().asset, `${assetName}.kcs.json`);
     markSaved();
-  }, [project, markSaved]);
+  }, [assetName, markSaved, syncLegend2dFromProject]);
+
+  // ── Export package handler ────────────────────────────────────────────────
+
+  const handleExportPackage = useCallback(() => {
+    syncLegend2dFromProject();
+    const latestProject = useProjectStore.getState().project;
+    exportPackage(assetName, latestProject, scene);
+  }, [assetName, scene, syncLegend2dFromProject]);
+
+  // ── 2D export dropdown ────────────────────────────────────────────────────
 
   const handleExportPNG = useCallback((scale, transparentBg) => {
     exportPNG(project, scale, transparentBg);
@@ -82,49 +122,26 @@ export default function DesignHeader({ mode, setMode }) {
     setExportOpen(false);
   }, [project]);
 
-  // ── 3D handlers ────────────────────────────────────────────────────────────
+  // ── Legacy .keycap import/export ─────────────────────────────────────────
 
-  const handleNewScene = useCallback(() => {
-    if (!window.confirm('Discard current 3D scene?')) return;
-    setScene(createDefaultScene());
-  }, [setScene]);
-
-  const handleOpenScene = useCallback(async () => {
+  const handleImportKeycap = useCallback(async () => {
     try {
-      const text = await new Promise((resolve, reject) => {
-        const input = document.createElement('input');
-        input.type   = 'file';
-        input.accept = '.json,.kcs3d.json';
-        input.onchange = () => {
-          const file = input.files?.[0];
-          if (!file) return reject(new Error('No file selected'));
-          const reader = new FileReader();
-          reader.onload = e => resolve(e.target.result);
-          reader.onerror = () => reject(new Error('Read error'));
-          reader.readAsText(file);
-        };
-        input.click();
-      });
-      const loaded = deserialiseScene(text);
-      setScene(loaded);
+      const loaded = await openProjectFile();
+      // Only replaces legend2d; shape3d is unchanged
+      loadAsset({
+        ...useAssetStore.getState().asset,
+        legend2d: { keycap: loaded.keycap, legends: loaded.legends },
+      }, { resetDirty: false });
+      setLegacyOpen(false);
     } catch (e) {
-      if (e.message !== 'No file selected') alert(`Open scene failed: ${e.message}`);
+      if (e.message !== 'No file selected') alert(`Import failed: ${e.message}`);
     }
-  }, [setScene]);
+  }, [loadAsset]);
 
-  const handleSaveScene = useCallback(() => {
-    const json = serialiseScene(scene);
-    const blob = new Blob([json], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href     = URL.createObjectURL(blob);
-    link.download = `${scene.name ?? 'scene'}.kcs3d.json`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }, [scene]);
-
-  const handleExportSTL = useCallback(() => {
-    exportSceneSTL(scene, `${scene.name ?? 'scene'}.stl`);
-  }, [scene]);
+  const handleExportKeycap = useCallback(() => {
+    saveProjectFile(project);
+    setLegacyOpen(false);
+  }, [project]);
 
   return (
     <header className="bg-gray-800 border-b border-gray-700 px-4 py-2 flex items-center gap-2 flex-wrap">
@@ -134,25 +151,41 @@ export default function DesignHeader({ mode, setMode }) {
       {/* Divider */}
       <span className="w-px h-5 bg-gray-600" />
 
-      {mode === '2d' ? (
+      {/* Unified file ops (always visible) */}
+      <ToolbarBtn onClick={handleNew} title="New project">New</ToolbarBtn>
+      <ToolbarBtn onClick={handleOpenProject} title="Open .kcs.json project file">Open Project</ToolbarBtn>
+      <ToolbarBtn
+        onClick={handleSaveProject}
+        variant={isDirty ? 'primary' : 'default'}
+        title="Save project as .kcs.json"
+      >
+        {isDirty ? '● Save Project' : 'Save Project'}
+      </ToolbarBtn>
+
+      {/* Divider */}
+      <span className="w-px h-5 bg-gray-600" />
+
+      {/* Stage-specific actions */}
+      {mode === '3d' ? (
         <>
-          {/* 2D File ops */}
-          <ToolbarBtn onClick={handleNew}  title="New project (Ctrl+N)">New</ToolbarBtn>
-          <ToolbarBtn onClick={handleOpen} title="Open .keycap file">Open</ToolbarBtn>
-          <ToolbarBtn
-            onClick={handleSave}
-            variant={isDirty ? 'primary' : 'default'}
-            title="Save .keycap file"
-          >
-            {isDirty ? '● Save' : 'Save'}
+          {/* Next step CTA */}
+          <ToolbarBtn onClick={() => setMode('2d')} variant="success" title="Switch to 2D Legends editor">
+            Next: Legends →
+          </ToolbarBtn>
+        </>
+      ) : (
+        <>
+          {/* Back CTA */}
+          <ToolbarBtn onClick={() => setMode('3d')} title="Switch back to 3D Shape editor">
+            ← Back: Shape
           </ToolbarBtn>
 
           {/* Divider */}
           <span className="w-px h-5 bg-gray-600" />
 
-          {/* Export dropdown */}
+          {/* 2D Export dropdown */}
           <div className="relative">
-            <ToolbarBtn onClick={() => setExportOpen(v => !v)} title="Export">
+            <ToolbarBtn onClick={() => setExportOpen(v => !v)} title="Export 2D image">
               Export ▾
             </ToolbarBtn>
             {exportOpen && (
@@ -175,23 +208,37 @@ export default function DesignHeader({ mode, setMode }) {
           <ToolbarBtn onClick={undo} disabled={past.length === 0} title="Undo (Ctrl+Z)">↩ Undo</ToolbarBtn>
           <ToolbarBtn onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Y)">↪ Redo</ToolbarBtn>
         </>
-      ) : (
-        <>
-          {/* 3D File ops */}
-          <ToolbarBtn onClick={handleNewScene}  title="New 3D scene">New Scene</ToolbarBtn>
-          <ToolbarBtn onClick={handleOpenScene} title="Open .kcs3d.json scene file">Open Scene</ToolbarBtn>
-          <ToolbarBtn onClick={handleSaveScene} title="Save scene as .kcs3d.json">Save Scene</ToolbarBtn>
-
-          {/* Divider */}
-          <span className="w-px h-5 bg-gray-600" />
-
-          {/* Export STL */}
-          <ToolbarBtn onClick={handleExportSTL} variant="primary" title="Export scene as binary STL">Export STL</ToolbarBtn>
-        </>
       )}
+
+      {/* Divider */}
+      <span className="w-px h-5 bg-gray-600" />
+
+      {/* Export Package – always visible */}
+      <ToolbarBtn onClick={handleExportPackage} variant="primary" title="Export STL + PNG@4x + SVG">
+        Export Package
+      </ToolbarBtn>
+
+      {/* Legacy menu */}
+      <div className="relative">
+        <ToolbarBtn onClick={() => setLegacyOpen(v => !v)} title="Legacy .keycap file operations">
+          Legacy ▾
+        </ToolbarBtn>
+        {legacyOpen && (
+          <div className="absolute top-full right-0 mt-1 bg-gray-700 border border-gray-600 rounded shadow-lg z-50 min-w-max text-xs">
+            <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={handleImportKeycap}>Import .keycap (legends only)</button>
+            <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={handleExportKeycap}>Export .keycap</button>
+          </div>
+        )}
+      </div>
 
       {/* Spacer */}
       <span className="flex-1" />
+
+      {/* Stage indicator */}
+      <StageIndicator mode={mode} />
+
+      {/* Spacer */}
+      <span className="w-4" />
 
       {/* Mode toggle */}
       <div className="flex rounded overflow-hidden border border-gray-600 text-xs">
@@ -207,3 +254,4 @@ export default function DesignHeader({ mode, setMode }) {
     </header>
   );
 }
+
