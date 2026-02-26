@@ -144,3 +144,20 @@ src/
 - [ ] **v0.5** 键帽图例（文字刻印）
 - [ ] **v1.0** Web Worker 生成 + 完整测试覆盖
 
+---
+
+## 发布与部署
+
+所有发布相关的文件和二进制包位于 `releases/` 文件夹中。
+
+### 自动化发布
+运行以下命令进行自动化发布：
+```bash
+npm run release
+```
+
+这将构建项目、创建发布包并使用 GitHub CLI 创建发布。
+
+### 手动发布
+详情请参考 [`releases/README.md`](releases/README.md)。
+
