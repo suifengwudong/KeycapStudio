@@ -65,8 +65,8 @@ export default function ParameterEditor() {
       {/* 壁厚 */}
       <Slider
         label="壁厚"
-        min={0.5}
-        max={4.0}
+        min={0.8}
+        max={3.5}
         step={0.1}
         value={params.wallThickness}
         onChange={(value) => updateParams({ wallThickness: value })}

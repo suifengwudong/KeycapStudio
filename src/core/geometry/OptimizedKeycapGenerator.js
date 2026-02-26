@@ -23,9 +23,11 @@ export class OptimizedKeycapGenerator {
       profile = 'Cherry',
       size = '1u',
       hasStem = true,
-      topRadius = 0.5,
-      wallThickness = 1.5,
     } = params;
+
+    // clamp 参数范围，防止 CSG/生成崩溃
+    const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
+    const wallThickness = Math.max(0.8, Math.min(3.5, params.wallThickness ?? 1.5));
     
     console.time('⏱️ 键帽生成总耗时');
     
