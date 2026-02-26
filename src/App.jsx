@@ -5,15 +5,18 @@ import KeycapCanvas2D from './components/canvas/KeycapCanvas2D';
 import Scene3D        from './components/canvas/Scene3D';
 import Outliner       from './components/panels/Outliner';
 import NodeInspector  from './components/panels/NodeInspector';
+import ExportOverlay  from './components/common/ExportOverlay';
 import { useAssetStore, readKcsAutosave } from './store/assetStore';
 import { useProjectStore } from './store/projectStore';
 import { startKcsAutosave, stopKcsAutosave } from './core/io/kcsIO';
+import { useExportController } from './hooks/useExportController';
 
 export default function App() {
   const [mode, setMode] = useState('3d'); // start in Shape (3D) – step 1 of the flow
   const loadAsset         = useAssetStore(s => s.loadAsset);
   const setUiContext      = useAssetStore(s => s.setUiContext);
   const setSelectedLegend = useProjectStore(s => s.setSelectedLegend);
+  const { isExporting, stage, runExport } = useExportController();
 
   // Crash-recovery: offer to restore autosave on first launch
   useEffect(() => {
@@ -48,8 +51,11 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-900 text-white">
+      {/* Export overlay – blocks all interaction during export */}
+      <ExportOverlay open={isExporting} stage={stage} />
+
       {/* Toolbar */}
-      <DesignHeader mode={mode} setMode={setMode} />
+      <DesignHeader mode={mode} setMode={setMode} isExporting={isExporting} runExport={runExport} />
 
       <div className="flex flex-1 overflow-hidden">
         {mode === '2d' ? (

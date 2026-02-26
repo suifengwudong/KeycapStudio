@@ -20,23 +20,24 @@ const DOWNLOAD_DELAY_MS = 400;
 /**
  * Trigger all three delivery downloads for the current keycap asset.
  *
- * @param {object} kcs     – current KCS document (shape3d + legend2d)
- * @param {object} project – 2D project object (projectStore.project shape)
- * @param {object} scene   – 3D scene document (from sceneStore.scene)
+ * @param {object}   kcs      – current KCS document (shape3d + legend2d)
+ * @param {object}   project  – 2D project object (projectStore.project shape)
+ * @param {object}   scene    – 3D scene document (from sceneStore.scene)
+ * @param {function} [onStage] – optional callback(stageText) for progress updates
  */
-export function exportPackage(kcs, project, scene) {
+export async function exportPackage(kcs, project, scene, onStage) {
   const { stl, png, svg } = makeExportNames(kcs);
 
-  // 1. STL (immediate)
-  exportSceneSTL(scene, stl);
+  // 1. STL
+  await exportSceneSTL(scene, stl, onStage);
 
-  // 2. PNG @4x (after short delay so browser handles the first download)
-  setTimeout(() => {
-    exportPNG(project, 4, false, png);
-  }, DOWNLOAD_DELAY_MS);
+  // 2. PNG @4x (delay so the browser handles the first download)
+  onStage?.('Exporting PNG…');
+  await new Promise(resolve => setTimeout(resolve, DOWNLOAD_DELAY_MS));
+  exportPNG(project, 4, false, png);
 
-  // 3. SVG (another short delay)
-  setTimeout(() => {
-    exportSVG(project, false, svg);
-  }, DOWNLOAD_DELAY_MS * 2);
+  // 3. SVG
+  onStage?.('Exporting SVG…');
+  await new Promise(resolve => setTimeout(resolve, DOWNLOAD_DELAY_MS));
+  exportSVG(project, false, svg);
 }
