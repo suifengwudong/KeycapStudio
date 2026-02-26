@@ -1,6 +1,15 @@
 import * as THREE from 'three';
 import { CSG } from 'three-csg-ts';
 import { PROFILES, KEYCAP_SIZES } from '../../constants/profiles';
+import {
+  CHERRY_TOP_WIDTH,
+  CHERRY_TOP_DEPTH,
+  CHERRY_DISH_DEPTH,
+  CHERRY_CROSS_SIZE,
+  CHERRY_CROSS_THICK,
+  CHERRY_STEM_DEPTH,
+  CHERRY_SMOOTH_ANGLE,
+} from '../../constants/cherry';
 
 /**
  * 优化的键帽生成器 - 高质量 + 高性能
@@ -103,14 +112,14 @@ export class OptimizedKeycapGenerator {
       bottomWidth, 
       bottomDepth, 
       height, 
-      12.7,   // 顶部宽度
-      12.7,   // 顶部深度
-      1.2     // 内凹深度
+      CHERRY_TOP_WIDTH,
+      CHERRY_TOP_DEPTH,
+      CHERRY_DISH_DEPTH
     );
 
     // 7. 平滑法线（关键步骤！）
     geometry.computeVertexNormals();
-    this._smoothNormals(geometry, 35); // 35度阈值
+    this._smoothNormals(geometry, CHERRY_SMOOTH_ANGLE);
 
     // 8. 创建高质量材质
     const material = new THREE.MeshStandardMaterial({
@@ -345,19 +354,15 @@ export class OptimizedKeycapGenerator {
 
     // 2. 添加十字轴
     if (hasStem) {
-      const crossSize = 4.15;   // 稍大一点确保容差
-      const crossThick = 1.35;
-      const stemDepth = 4.0;
-      
       const hBar = new THREE.Mesh(
-        new THREE.BoxGeometry(crossSize, stemDepth, crossThick)
+        new THREE.BoxGeometry(CHERRY_CROSS_SIZE, CHERRY_STEM_DEPTH, CHERRY_CROSS_THICK)
       );
       const vBar = new THREE.Mesh(
-        new THREE.BoxGeometry(crossThick, stemDepth, crossSize)
+        new THREE.BoxGeometry(CHERRY_CROSS_THICK, CHERRY_STEM_DEPTH, CHERRY_CROSS_SIZE)
       );
       
-      hBar.position.y = stemDepth / 2;
-      vBar.position.y = stemDepth / 2;
+      hBar.position.y = CHERRY_STEM_DEPTH / 2;
+      vBar.position.y = CHERRY_STEM_DEPTH / 2;
       
       hBar.updateMatrix();
       vBar.updateMatrix();
@@ -391,14 +396,10 @@ export class OptimizedKeycapGenerator {
    * 获取十字轴几何体（用于辅助显示）
    */
   getStemGeometry() {
-    const crossSize = 4.1;
-    const crossThick = 1.35;
-    const stemDepth = 4.0;
+    const hBox = new THREE.BoxGeometry(CHERRY_CROSS_SIZE, CHERRY_STEM_DEPTH, CHERRY_CROSS_THICK);
+    const vBox = new THREE.BoxGeometry(CHERRY_CROSS_THICK, CHERRY_STEM_DEPTH, CHERRY_CROSS_SIZE);
     
-    const hBox = new THREE.BoxGeometry(crossSize, stemDepth, crossThick);
-    const vBox = new THREE.BoxGeometry(crossThick, stemDepth, crossSize);
-    
-    return { hBox, vBox, stemDepth };
+    return { hBox, vBox, stemDepth: CHERRY_STEM_DEPTH };
   }
 
   /**
