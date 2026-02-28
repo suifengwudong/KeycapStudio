@@ -66,8 +66,6 @@ export class OptimizedKeycapGenerator {
     const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
     const wallThickness = Math.max(0.8, Math.min(3.5, params.wallThickness ?? 1.5));
     
-    console.time('⏱️ 键帽生成总耗时');
-    
     const profileData = PROFILES[profile] || PROFILES['Cherry'];
     const sizeData = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
     const height = params.height || profileData.baseHeight;
@@ -75,7 +73,6 @@ export class OptimizedKeycapGenerator {
     const bottomDepth = sizeData.depth;
     
     // 生成高质量外壳
-    console.time('  ├─ 外壳生成');
     let mesh = this._createHighQualityMesh(
       bottomWidth, 
       bottomDepth, 
@@ -83,11 +80,9 @@ export class OptimizedKeycapGenerator {
       profileData,
       topRadius
     );
-    console.timeEnd('  ├─ 外壳生成');
 
     // CSG 运算优化：合并所有减法操作
     if (hasStem || wallThickness > 0) {
-      console.time('  ├─ CSG布尔运算');
       mesh = this._performCombinedCSG(
         mesh, 
         bottomWidth, 
@@ -95,10 +90,7 @@ export class OptimizedKeycapGenerator {
         wallThickness, 
         hasStem
       );
-      console.timeEnd('  ├─ CSG布尔运算');
     }
-
-    console.timeEnd('⏱️ 键帽生成总耗时');
     
     return mesh;
   }
