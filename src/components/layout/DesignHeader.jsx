@@ -13,7 +13,7 @@
  * Both modes:      Export Package (STL + PNG@4x + SVG)
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useProjectStore } from '../../store/projectStore.js';
 import { useSceneStore } from '../../store/sceneStore.js';
 import { useAssetStore, readKcsAutosave } from '../../store/assetStore.js';
@@ -192,6 +192,37 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport }) 
     setLegacyOpen(false);
   }, [project]);
 
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (!ctrl) return;
+
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        handleSaveProject();
+        return;
+      }
+
+      if (mode === '2d') {
+        if (e.key === 'z' || e.key === 'Z') {
+          e.preventDefault();
+          e.shiftKey ? redo() : undo();
+          return;
+        }
+        if ((e.key === 'y' || e.key === 'Y') && !e.shiftKey) {
+          e.preventDefault();
+          redo();
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [handleSaveProject, mode, undo, redo]);
+
   return (
     <header className="bg-gray-800 border-b border-gray-700 px-4 py-2 flex items-center gap-2 flex-wrap">
       {/* Logo */}
@@ -206,7 +237,7 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport }) 
       <ToolbarBtn
         onClick={handleSaveProject}
         variant={isDirty ? 'primary' : 'default'}
-        title="Save project as .kcs.json"
+        title="Save project as .kcs.json (Ctrl+S)"
       >
         {isDirty ? '● Save Project' : 'Save Project'}
       </ToolbarBtn>
