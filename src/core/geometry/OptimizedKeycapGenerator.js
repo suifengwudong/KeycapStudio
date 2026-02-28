@@ -34,6 +34,9 @@ export class OptimizedKeycapGenerator {
     } = params;
 
     const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
+    const dishDepth = params.dishDepth != null
+      ? Math.max(0, Math.min(3.0, params.dishDepth))
+      : CHERRY_DISH_DEPTH;
 
     const profileData = PROFILES[profile] || PROFILES['Cherry'];
     const sizeData = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
@@ -46,7 +49,8 @@ export class OptimizedKeycapGenerator {
       bottomDepth,
       height,
       profileData,
-      topRadius
+      topRadius,
+      dishDepth
     );
 
     return mesh;
@@ -65,6 +69,9 @@ export class OptimizedKeycapGenerator {
     // clamp 参数范围，防止 CSG/生成崩溃
     const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
     const wallThickness = Math.max(0.8, Math.min(3.5, params.wallThickness ?? 1.5));
+    const dishDepth = params.dishDepth != null
+      ? Math.max(0, Math.min(3.0, params.dishDepth))
+      : CHERRY_DISH_DEPTH;
     
     const profileData = PROFILES[profile] || PROFILES['Cherry'];
     const sizeData = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
@@ -78,7 +85,8 @@ export class OptimizedKeycapGenerator {
       bottomDepth, 
       height, 
       profileData,
-      topRadius
+      topRadius,
+      dishDepth
     );
 
     // CSG 运算优化：合并所有减法操作
@@ -98,7 +106,7 @@ export class OptimizedKeycapGenerator {
   /**
    * 创建高质量键帽网格
    */
-  _createHighQualityMesh(bottomWidth, bottomDepth, height, profileData, topRadius) {
+  _createHighQualityMesh(bottomWidth, bottomDepth, height, profileData, topRadius, dishDepth = CHERRY_DISH_DEPTH) {
     // 1. 动态计算最优分段数
     const curveSegments = this._calculateOptimalSegments(bottomWidth, bottomDepth);
     
@@ -134,7 +142,7 @@ export class OptimizedKeycapGenerator {
       height, 
       CHERRY_TOP_WIDTH,
       CHERRY_TOP_DEPTH,
-      CHERRY_DISH_DEPTH
+      dishDepth
     );
 
     // 7. 平滑法线（关键步骤！）

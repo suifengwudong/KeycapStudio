@@ -5,9 +5,9 @@
 import React from 'react';
 import { useSceneStore } from '../../store/sceneStore';
 import { findNodeById, NODE_TYPES, BOOLEAN_OPS } from '../../core/model/sceneDocument';
-import { PROFILES, KEYCAP_SIZES } from '../../constants/profiles';
 import Slider from '../common/Slider';
 import ColorPicker from '../common/ColorPicker';
+import KeycapInspector from './KeycapInspector';
 
 // ─── Vec3 editor ─────────────────────────────────────────────────────────────
 
@@ -67,52 +67,6 @@ function PrimitiveInspector({ node, onUpdate }) {
       <div>
         <label className="block text-xs text-gray-400 mb-1">Color</label>
         <ColorPicker value={node.material?.color ?? '#cccccc'} onChange={setMat} />
-      </div>
-    </>
-  );
-}
-
-function KeycapInspector({ node, onUpdate }) {
-  const p    = node.params ?? {};
-  const setP = (key, val) => onUpdate({ params: { ...p, [key]: val } });
-
-  return (
-    <>
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">Profile</label>
-        <select
-          value={p.profile ?? 'Cherry'}
-          onChange={e => setP('profile', e.target.value)}
-          className="w-full bg-gray-900 text-white text-xs px-2 py-1.5 rounded border border-gray-700"
-        >
-          {Object.keys(PROFILES).map(k => <option key={k} value={k}>{PROFILES[k].name}</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">Size</label>
-        <select
-          value={p.size ?? '1u'}
-          onChange={e => setP('size', e.target.value)}
-          className="w-full bg-gray-900 text-white text-xs px-2 py-1.5 rounded border border-gray-700"
-        >
-          {Object.keys(KEYCAP_SIZES).map(k => <option key={k} value={k}>{k}</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">Color</label>
-        <ColorPicker value={p.color ?? '#ffffff'} onChange={c => setP('color', c)} />
-      </div>
-      <Slider label="Top Radius (mm)"      min={0.1} max={3.0} step={0.1} value={p.topRadius     ?? 0.5} onChange={v => setP('topRadius',     v)} unit="mm" />
-      <Slider label="Wall Thickness (mm)"  min={0.8} max={3.5} step={0.1} value={p.wallThickness ?? 1.5} onChange={v => setP('wallThickness',  v)} unit="mm" />
-      <div className="flex items-center gap-2">
-        <input
-          id="hasStem"
-          type="checkbox"
-          checked={p.hasStem ?? true}
-          onChange={e => setP('hasStem', e.target.checked)}
-          className="accent-blue-500"
-        />
-        <label htmlFor="hasStem" className="text-xs text-gray-300 cursor-pointer">Cherry MX stem hole</label>
       </div>
     </>
   );
