@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { CSG } from 'three-csg-ts';
 import { STLExporter as ThreeSTLExporter } from 'three/examples/jsm/exporters/STLExporter';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { OptimizedKeycapGenerator } from '../core/geometry/OptimizedKeycapGenerator';
 import { NODE_TYPES } from '../core/model/sceneDocument';
 
@@ -99,6 +100,7 @@ function _evalBoolean(node) {
   }
 
   const result = CSG.toMesh(resultCSG, new THREE.Matrix4(), base.material);
+  result.geometry = mergeVertices(result.geometry);
   result.geometry.computeVertexNormals();
   _applyTransform(result, node);
   return result;
