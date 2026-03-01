@@ -83,6 +83,8 @@ export function createKeycapNode(overrides = {}) {
       hasStem      : true,
       topRadius    : 0.5,
       wallThickness: 1.5,
+      height       : null,   // null → use profile default
+      dishDepth    : null,   // null → use CHERRY_DISH_DEPTH (1.2 mm)
       ...(paramOverrides ?? {}),
     },
     position : [0, 0, 0],
