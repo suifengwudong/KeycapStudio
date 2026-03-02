@@ -47,6 +47,28 @@ export default function Scene3D() {
           outputColorSpace: THREE.SRGBColorSpace
         }}
       >
+        {/* Always-on fallback lights – keep geometry visible while Environment loads */}
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[10, 20, 10]} intensity={0.8} castShadow />
+
+        {/* Scene document nodes – rendered immediately, not blocked by Environment */}
+        <SceneNodeRenderer scene={scene} />
+
+        {/* Camera controls – always active */}
+        <OrbitControls 
+          makeDefault
+          minPolarAngle={0}
+          maxPolarAngle={Math.PI / 2}
+          minDistance={10}
+          maxDistance={100}
+          enableDamping
+          dampingFactor={0.05}
+          rotateSpeed={0.5}
+          panSpeed={0.5}
+          zoomSpeed={0.8}
+        />
+
+        {/* Visual enhancements that load asynchronously – hidden until ready */}
         <Suspense fallback={null}>
           {/*  专业级环境光 */}
           <Environment 
@@ -91,9 +113,6 @@ export default function Scene3D() {
             color="#000000"
           />
           
-          {/* Scene document nodes */}
-          <SceneNodeRenderer scene={scene} />
-          
           {/*  参考网格 */}
           <Grid 
             args={[100, 100]}
@@ -108,20 +127,7 @@ export default function Scene3D() {
             followCamera={false}
             infiniteGrid
           />
-          
-          {/*  优化的相机控制 */}
-          <OrbitControls 
-            makeDefault
-            minPolarAngle={0}
-            maxPolarAngle={Math.PI / 2}
-            minDistance={10}
-            maxDistance={100}
-            enableDamping
-            dampingFactor={0.05}
-            rotateSpeed={0.5}
-            panSpeed={0.5}
-            zoomSpeed={0.8}
-          />
+
           <PerformanceMonitor />
         </Suspense>
       </Canvas>
