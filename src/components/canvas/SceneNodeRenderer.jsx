@@ -59,7 +59,7 @@ function PrimitiveNode({ node }) {
   const p   = node.params   ?? {};
   const pos = node.position ?? [0, 0, 0];
   const rot = node.rotation ?? [0, 0, 0];
-  const col = node.material?.color ?? '#cccccc';
+  const col = node.material?.color ?? '#c8dff0';
 
   let geo;
   switch (node.primitive) {
@@ -110,7 +110,7 @@ function KeycapTemplateNode({ node }) {
   // dishDepth / height may be null → _resolveParams falls back to profile defaults
   const dishDepth = p.dishDepth;
   const height    = p.height;
-  const color     = p.color ?? '#cccccc';
+  const color     = p.color ?? '#c8dff0';
   const hasStem   = p.hasStem ?? true;
 
   // Resolve actual keycap height for overlay positioning.
@@ -147,8 +147,6 @@ function KeycapTemplateNode({ node }) {
     const mat = new THREE.LineDashedMaterial({ color: '#ff6600', dashSize: 0.8, gapSize: 0.4 });
     const lines = new THREE.LineSegments(geo, mat);
     lines.computeLineDistances();
-    // Set position here so the primitive element needs no prop update each render.
-    lines.position.set(0, -0.1, 0);
     return lines;
   }, []);
 
@@ -167,7 +165,8 @@ function KeycapTemplateNode({ node }) {
   const embossEnabled  = p.embossEnabled ?? false;
   const embossText     = (p.embossText ?? '').trim();
   const embossFontSize = p.embossFontSize ?? 5;
-  const embossDepth    = p.embossDepth ?? 0.4;
+  const embossDepth    = p.embossDepth ?? 1.0;
+  const embossColor    = p.embossColor ?? '#222222';
 
   const embossGeo = useMemo(() => {
     if (!embossEnabled || !embossText) return null;
@@ -191,6 +190,11 @@ function KeycapTemplateNode({ node }) {
     }
   }, [embossEnabled, embossText, embossFontSize, embossDepth]);
 
+  // Dispose emboss geometry on change or unmount to prevent leaks.
+  useEffect(() => {
+    return () => { embossGeo?.dispose(); };
+  }, [embossGeo]);
+
   if (!geometry) {
     // Fallback rendered only when generateInstantPreview throws (should not occur in practice)
     return (
@@ -209,25 +213,30 @@ function KeycapTemplateNode({ node }) {
       </mesh>
 
       {/* Cherry MX stem hole indicator ─────────────────────────────────────
-          Two dashed orange lines forming a cross in the XZ plane, positioned
-          just below the keycap bottom face (y = −0.1). Clearly visible when
-          the user orbits to inspect the keycap underside. */}
+          Dashed orange cross positioned on TOP of the keycap (y = resolvedHeight + 0.2)
+          so it is visible from the default above-angled camera view.
+          Indicates where the Cherry MX stem hole will appear on the underside. */}
       {hasStem && (
-        <primitive object={stemDashLines} />
+        <primitive object={stemDashLines} position={[0, resolvedHeight + 0.2, 0]} />
       )}
 
       {/* Emboss text preview ──────────────────────────────────────────────
           TextGeometry (XY plane, extruding +Z) is rotated -π/2 around X so it
           lies flat in the XZ plane extruding upward (+Y) from the keycap top.
-          Positioned flush with the top surface (no clearance gap). */}
+          Offset 0.2 mm above the top surface to eliminate Z-fighting with
+          the keycap top face. A contrasting embossColor ensures visibility. */}
       {embossGeo && (
         <mesh
           geometry={embossGeo}
-          position={[0, resolvedHeight, 0]}
+          position={[0, resolvedHeight + 0.2, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           castShadow
         >
-          <meshStandardMaterial color={color} roughness={0.35} metalness={0.08} />
+          <meshStandardMaterial
+            color={embossColor}
+            roughness={0.4}
+            metalness={0.05}
+          />
         </mesh>
       )}
     </group>
@@ -240,7 +249,7 @@ function GhostPrimitive({ node }) {
   const p   = node.params   ?? {};
   const pos = node.position ?? [0, 0, 0];
   const rot = node.rotation ?? [0, 0, 0];
-  const col = node.material?.color ?? '#cccccc';
+  const col = node.material?.color ?? '#c8dff0';
 
   let geo;
   switch (node.primitive) {
