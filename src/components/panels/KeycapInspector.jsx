@@ -10,6 +10,7 @@
  *   - Cherry MX stem  (checkbox)
  *   - Height override (6–20 mm, Auto by default)
  *   - Dish Depth      (0–3.0 mm, controls top-surface concavity)
+ *   - Text Emboss     (enabled, text, font size, depth) – 字的浮雕
  */
 
 import React from 'react';
@@ -134,6 +135,64 @@ export default function KeycapInspector({ node, onUpdate }) {
           Cherry MX stem hole
         </label>
       </div>
+
+      {/* ── Text Emboss (字的浮雕) ────────────────────────────────── */}
+      <div className="border-t border-gray-700 pt-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">浮雕文字</span>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={p.embossEnabled ?? false}
+              onChange={e => setP('embossEnabled', e.target.checked)}
+              className="accent-blue-500"
+            />
+            <span className="text-xs text-gray-300">启用</span>
+          </label>
+        </div>
+
+        {p.embossEnabled && (
+          <>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">文字内容</label>
+              <input
+                type="text"
+                maxLength={6}
+                value={p.embossText ?? ''}
+                onChange={e => setP('embossText', e.target.value)}
+                placeholder="例：A  Esc  ↵"
+                className="w-full bg-gray-900 text-white text-xs px-2 py-1.5 rounded border border-gray-700 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <Slider
+              label="字体大小 (mm)"
+              min={2} max={10} step={0.5}
+              value={p.embossFontSize ?? 5}
+              onChange={v => setP('embossFontSize', v)}
+              unit="mm"
+            />
+
+            <Slider
+              label="浮雕深度 (mm)"
+              min={0.1} max={2.0} step={0.1}
+              value={p.embossDepth ?? 0.4}
+              onChange={v => setP('embossDepth', v)}
+              unit="mm"
+            />
+
+            {/* Recommended parameter hints */}
+            <div className="bg-gray-900/60 rounded p-2 text-xs text-gray-500 space-y-0.5">
+              <div className="text-gray-400 font-medium mb-1">推荐参数</div>
+              <div>• FDM 打印：深度 0.3–0.6 mm</div>
+              <div>• 视觉效果：深度 0.5–1.0 mm</div>
+              <div>• 1u 键帽字体：4–6 mm</div>
+              <div className="text-yellow-600 mt-1">⚠ 浮雕仅在 STL 导出中生效</div>
+            </div>
+          </>
+        )}
+      </div>
     </>
   );
 }
+
