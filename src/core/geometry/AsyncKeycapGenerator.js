@@ -12,7 +12,8 @@ export class AsyncKeycapGenerator {
   }
 
   /**
-   * 异步生成预览键帽（跳过 CSG，速度快）
+   * 异步生成预览键帽（跳过 CSG，即时渲染）
+   * 使用 generateInstantPreview 确保用户立即看到图形
    */
   async generatePreviewAsync(params) {
     const cacheKey = 'preview-' + this._getCacheKey(params);
@@ -21,10 +22,15 @@ export class AsyncKeycapGenerator {
       return this.cache.get(cacheKey);
     }
 
+    // 使用 requestAnimationFrame 在下一帧开始时生成，确保 UI 先渲染占位符
+    const schedule = typeof requestAnimationFrame !== 'undefined'
+      ? (fn) => requestAnimationFrame(fn)
+      : (fn) => setTimeout(fn, 0);
+
     return new Promise((resolve) => {
-      setTimeout(() => {
+      schedule(() => {
         try {
-          const mesh = this.generator.generatePreview(params);
+          const mesh = this.generator.generateInstantPreview(params);
 
           const result = {
             geometry: mesh.geometry,
@@ -38,7 +44,7 @@ export class AsyncKeycapGenerator {
           console.error(' 预览生成失败:', error);
           resolve(null);
         }
-      }, 10);
+      });
     });
   }
 

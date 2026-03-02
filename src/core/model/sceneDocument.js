@@ -77,14 +77,19 @@ export function createKeycapNode(overrides = {}) {
     type     : NODE_TYPES.KEYCAP,
     name     : 'Keycap',
     params   : {
-      profile      : 'Cherry',
-      size         : '1u',
-      color        : '#ffffff',
-      hasStem      : true,
-      topRadius    : 0.5,
-      wallThickness: 1.5,
-      height       : null,   // null → use profile default
-      dishDepth    : null,   // null → use CHERRY_DISH_DEPTH (1.2 mm)
+      profile       : 'Cherry',
+      size          : '1u',
+      color         : '#ffffff',
+      hasStem       : true,
+      topRadius     : 0.5,
+      wallThickness : 1.5,
+      height        : null,   // null → use profile default
+      dishDepth     : null,   // null → use CHERRY_DISH_DEPTH (1.2 mm)
+      // Text emboss (浮雕) parameters
+      embossEnabled : false,
+      embossText    : '',
+      embossFontSize: 5,      // mm – recommended: 4–6 mm for 1u keys
+      embossDepth   : 0.4,    // mm – recommended: 0.3–0.6 mm for FDM printing
       ...(paramOverrides ?? {}),
     },
     position : [0, 0, 0],
