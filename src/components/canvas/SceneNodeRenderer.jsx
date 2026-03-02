@@ -14,11 +14,10 @@
 
 import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import { NODE_TYPES } from '../../core/model/sceneDocument';
 import { PROFILES } from '../../constants/profiles';
 import { CHERRY_CROSS_SIZE } from '../../constants/cherry';
-import { OptimizedKeycapGenerator, getKeycapFont } from '../../core/geometry/OptimizedKeycapGenerator';
+import { OptimizedKeycapGenerator } from '../../core/geometry/OptimizedKeycapGenerator';
 
 // ─── Module-level instant-preview generator + LRU cache ──────────────────────
 
@@ -130,9 +129,8 @@ function KeycapTemplateNode({ node }) {
   }, [profile, size, topRadius, dishDepth, height]);
 
   // Cherry MX stem hole dashed-line cross indicator ─────────────────────────
-  // Two perpendicular LineSegments in the XZ plane using LineDashedMaterial
-  // so the indicator is visually distinct from the keycap body.
-  // Created once per component instance (deps are constants).
+  // Uses depthTest:false so the cross is ALWAYS visible regardless of camera
+  // angle or whether the keycap body is in front.
   const stemDashLines = useMemo(() => {
     const positions = new Float32Array([
       // Horizontal arm (along X)
@@ -144,9 +142,16 @@ function KeycapTemplateNode({ node }) {
     ]);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.LineDashedMaterial({ color: '#ff6600', dashSize: 0.8, gapSize: 0.4 });
+    const mat = new THREE.LineDashedMaterial({
+      color      : '#ff6600',
+      dashSize   : 0.8,
+      gapSize    : 0.4,
+      depthTest  : false,   // always draw on top of everything
+      depthWrite : false,
+    });
     const lines = new THREE.LineSegments(geo, mat);
     lines.computeLineDistances();
+    lines.renderOrder = 999;
     return lines;
   }, []);
 
@@ -158,42 +163,58 @@ function KeycapTemplateNode({ node }) {
     };
   }, [stemDashLines]);
 
-  // Emboss text geometry (optional) ─────────────────────────────────────────
-  // TextGeometry is created synchronously using the module-level font singleton.
-  // The geometry is centred in the XY plane (before rotation); a -π/2 rotation
-  // around X lays it flat on the horizontal keycap top surface.
+  // Emboss dashed-outline indicator ─────────────────────────────────────────
+  // Instead of a TextGeometry (which requires async font loading and can be
+  // occluded), we draw a dashed rectangle outline on the keycap top surface
+  // that indicates the approximate text area.  depthTest:false ensures it is
+  // ALWAYS visible regardless of camera position.
   const embossEnabled  = p.embossEnabled ?? false;
   const embossText     = (p.embossText ?? '').trim();
   const embossFontSize = p.embossFontSize ?? 5;
   const embossDepth    = p.embossDepth ?? 1.0;
   const embossColor    = p.embossColor ?? '#222222';
 
-  const embossGeo = useMemo(() => {
+  const embossOutlineLines = useMemo(() => {
     if (!embossEnabled || !embossText) return null;
-    try {
-      const font = getKeycapFont();
-      if (!font) return null;
-      const geo  = new TextGeometry(embossText, {
-        font,
-        size         : Math.max(2, Math.min(10, embossFontSize)),
-        height       : Math.max(0.1, Math.min(2.0, embossDepth)),
-        curveSegments: 4,
-        bevelEnabled : false,
-      });
-      geo.computeBoundingBox();
-      const { min, max } = geo.boundingBox;
-      // Centre in XY before rotation (after -π/2 around X, X stays X and Y→Z)
-      geo.translate(-(max.x + min.x) / 2, -(max.y + min.y) / 2, 0);
-      return geo;
-    } catch {
-      return null;
-    }
-  }, [embossEnabled, embossText, embossFontSize, embossDepth]);
+    // Approximate text bounding box based on font size and character count.
+    // Half-widths/heights in mm (XZ plane, Y is up).
+    const charCount = Math.max(1, embossText.length);
+    const hw = Math.max(2, Math.min(embossFontSize * charCount * 0.55, 12)); // half-width
+    const hh = Math.max(2, Math.min(embossFontSize * 1.3, 10));              // half-height (Z)
 
-  // Dispose emboss geometry on change or unmount to prevent leaks.
+    // Rectangle corners in XZ plane (y stays 0; we position the primitive)
+    const positions = new Float32Array([
+      // Top edge
+      -hw, 0, -hh,   hw, 0, -hh,
+      // Right edge
+       hw, 0, -hh,   hw, 0,  hh,
+      // Bottom edge
+       hw, 0,  hh,  -hw, 0,  hh,
+      // Left edge
+      -hw, 0,  hh,  -hw, 0, -hh,
+    ]);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.LineDashedMaterial({
+      color      : embossColor,
+      dashSize   : 0.6,
+      gapSize    : 0.3,
+      depthTest  : false,
+      depthWrite : false,
+    });
+    const lines = new THREE.LineSegments(geo, mat);
+    lines.computeLineDistances();
+    lines.renderOrder = 999;
+    return lines;
+  }, [embossEnabled, embossText, embossFontSize, embossColor]);
+
+  // Dispose emboss outline on change or unmount to prevent leaks.
   useEffect(() => {
-    return () => { embossGeo?.dispose(); };
-  }, [embossGeo]);
+    return () => {
+      embossOutlineLines?.geometry.dispose();
+      embossOutlineLines?.material.dispose();
+    };
+  }, [embossOutlineLines]);
 
   if (!geometry) {
     // Fallback rendered only when generateInstantPreview throws (should not occur in practice)
@@ -213,31 +234,18 @@ function KeycapTemplateNode({ node }) {
       </mesh>
 
       {/* Cherry MX stem hole indicator ─────────────────────────────────────
-          Dashed orange cross positioned on TOP of the keycap (y = resolvedHeight + 0.2)
-          so it is visible from the default above-angled camera view.
-          Indicates where the Cherry MX stem hole will appear on the underside. */}
+          Dashed orange cross placed 0.5 mm above the keycap top surface.
+          depthTest:false guarantees visibility from any camera angle.       */}
       {hasStem && (
-        <primitive object={stemDashLines} position={[0, resolvedHeight + 0.2, 0]} />
+        <primitive object={stemDashLines} position={[0, resolvedHeight + 0.5, 0]} />
       )}
 
-      {/* Emboss text preview ──────────────────────────────────────────────
-          TextGeometry (XY plane, extruding +Z) is rotated -π/2 around X so it
-          lies flat in the XZ plane extruding upward (+Y) from the keycap top.
-          Offset 0.2 mm above the top surface to eliminate Z-fighting with
-          the keycap top face. A contrasting embossColor ensures visibility. */}
-      {embossGeo && (
-        <mesh
-          geometry={embossGeo}
-          position={[0, resolvedHeight + 0.2, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          castShadow
-        >
-          <meshStandardMaterial
-            color={embossColor}
-            roughness={0.4}
-            metalness={0.05}
-          />
-        </mesh>
+      {/* Emboss text area indicator ──────────────────────────────────────
+          Dashed rectangle outline matching the approximate text bounding
+          box placed 0.5 mm above the top surface.
+          The actual embossed geometry only appears in the exported STL.    */}
+      {embossOutlineLines && (
+        <primitive object={embossOutlineLines} position={[0, resolvedHeight + 0.5, 0]} />
       )}
     </group>
   );
