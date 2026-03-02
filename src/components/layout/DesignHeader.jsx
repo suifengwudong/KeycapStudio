@@ -26,6 +26,8 @@ import { exportSceneSTL } from '../../core/csg/csgEvaluator.js';
 import { batchExportSTL } from '../../core/export/batchExport.js';
 import { makeExportNames } from '../../core/io/filename.js';
 import BatchExportDialog from '../common/BatchExportDialog.jsx';
+import LangSwitcher from '../common/LangSwitcher.jsx';
+import { useT } from '../../store/langStore.js';
 
 function ToolbarBtn({ onClick, disabled, children, title, variant = 'default' }) {
   const base  = 'px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed';
@@ -44,11 +46,11 @@ function ToolbarBtn({ onClick, disabled, children, title, variant = 'default' })
 }
 
 /** Slim stage indicator: 1 Shape → 2 Legends → 3 Export */
-function StageIndicator({ mode }) {
+function StageIndicator({ mode, t }) {
   const steps = [
-    { key: '3d', label: '1 Shape' },
-    { key: '2d', label: '2 Legends' },
-    { key: 'export', label: '3 Export' },
+    { key: '3d', label: t('stage1') },
+    { key: '2d', label: t('stage2') },
+    { key: 'export', label: t('stage3') },
   ];
   const activeIdx = mode === '3d' ? 0 : mode === '2d' ? 1 : 2;
   return (
@@ -66,6 +68,7 @@ function StageIndicator({ mode }) {
 }
 
 export default function DesignHeader({ mode, setMode, isExporting, runExport, onOpenPresets }) {
+  const t         = useT();
   const project   = useProjectStore(s => s.project);
   const isDirty2d = useProjectStore(s => s.isDirty);
   const past      = useProjectStore(s => s.past);
@@ -85,20 +88,20 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport, on
   // ── Unified project handlers ──────────────────────────────────────────────
 
   const handleNew = useCallback(() => {
-    if (isDirty && !window.confirm('Discard unsaved changes?')) return;
+    if (isDirty && !window.confirm(t('confirmDiscard'))) return;
     newAsset();
     onOpenPresets?.(); // open preset gallery after creating blank project
-  }, [isDirty, newAsset, onOpenPresets]);
+  }, [isDirty, newAsset, onOpenPresets, t]);
 
   const handleOpenProject = useCallback(async () => {
-    if (isDirty && !window.confirm('Discard unsaved changes?')) return;
+    if (isDirty && !window.confirm(t('confirmDiscard'))) return;
     try {
       const doc = await openKcsFile();
       loadAsset(doc, { resetDirty: true });
     } catch (e) {
       if (e.message !== 'No file selected') alert(`Open failed: ${e.message}`);
     }
-  }, [isDirty, loadAsset]);
+  }, [isDirty, loadAsset, t]);
 
   const handleSaveProject = useCallback(() => {
     // Sync 2D edits into asset before saving, then read the updated state
@@ -256,21 +259,21 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport, on
 
       <header className="bg-gray-800 border-b border-gray-700 px-4 py-2 flex items-center gap-2 flex-wrap">
         {/* Logo */}
-        <span className="text-sm font-bold text-white mr-2 select-none">⌨ Keycap Studio</span>
+        <span className="text-sm font-bold text-white mr-2 select-none">{t('appTitle')}</span>
 
         {/* Divider */}
         <span className="w-px h-5 bg-gray-600" />
 
         {/* Unified file ops (always visible) */}
-        <ToolbarBtn onClick={handleNew} title="New blank project">New</ToolbarBtn>
-        <ToolbarBtn onClick={onOpenPresets} title="Start from a common keycap preset">Presets</ToolbarBtn>
-        <ToolbarBtn onClick={handleOpenProject} title="Open .kcs.json project file">Open Project</ToolbarBtn>
+        <ToolbarBtn onClick={handleNew} title={t('btnNew')}>{t('btnNew')}</ToolbarBtn>
+        <ToolbarBtn onClick={onOpenPresets} title={t('btnPresets')}>{t('btnPresets')}</ToolbarBtn>
+        <ToolbarBtn onClick={handleOpenProject} title={t('btnOpenProject')}>{t('btnOpenProject')}</ToolbarBtn>
         <ToolbarBtn
           onClick={handleSaveProject}
           variant={isDirty ? 'primary' : 'default'}
-          title="Save project as .kcs.json (Ctrl+S)"
+          title={`${t('btnSaveProject')} (Ctrl+S)`}
         >
-          {isDirty ? '● Save Project' : 'Save Project'}
+          {isDirty ? t('btnSaveProjectDirty') : t('btnSaveProject')}
         </ToolbarBtn>
 
         {/* Divider */}
@@ -280,23 +283,23 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport, on
         {mode === '3d' ? (
           <>
             {/* Export STL for 3D mode */}
-            <ToolbarBtn onClick={handleExportSTL} disabled={isExporting} variant="success" title="Export STL from 3D scene">
-              Export STL
+            <ToolbarBtn onClick={handleExportSTL} disabled={isExporting} variant="success" title={t('btnExportSTL')}>
+              {t('btnExportSTL')}
             </ToolbarBtn>
             {/* Batch export */}
-            <ToolbarBtn onClick={() => setBatchDialogOpen(true)} disabled={isExporting} title="Batch export STL for multiple key sizes">
-              批量导出
+            <ToolbarBtn onClick={() => setBatchDialogOpen(true)} disabled={isExporting} title={t('btnBatchExport')}>
+              {t('btnBatchExport')}
             </ToolbarBtn>
             {/* Next step CTA */}
-            <ToolbarBtn onClick={() => setMode('2d')} variant="success" title="Switch to 2D Legends editor">
-              Next: Legends →
+            <ToolbarBtn onClick={() => setMode('2d')} variant="success" title={t('btnNextLegends')}>
+              {t('btnNextLegends')}
             </ToolbarBtn>
           </>
         ) : (
           <>
             {/* Back CTA */}
-            <ToolbarBtn onClick={() => setMode('3d')} title="Switch back to 3D Shape editor">
-              ← Back: Shape
+            <ToolbarBtn onClick={() => setMode('3d')} title={t('btnBackShape')}>
+              {t('btnBackShape')}
             </ToolbarBtn>
 
             {/* Divider */}
@@ -304,18 +307,18 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport, on
 
             {/* 2D Export dropdown */}
             <div className="relative">
-              <ToolbarBtn onClick={() => setExportOpen(v => !v)} title="Export 2D image">
-                Export ▾
+              <ToolbarBtn onClick={() => setExportOpen(v => !v)} title={t('btnExport')}>
+                {t('btnExport')}
               </ToolbarBtn>
               {exportOpen && (
                 <div className="absolute top-full left-0 mt-1 bg-gray-700 border border-gray-600 rounded shadow-lg z-50 min-w-max text-xs">
-                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(2, false)}>PNG 2× (opaque)</button>
-                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(4, false)}>PNG 4× (opaque)</button>
-                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(2, true)}>PNG 2× (transparent bg)</button>
-                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(4, true)}>PNG 4× (transparent bg)</button>
+                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(2, false)}>{t('exportPng2Opaque')}</button>
+                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(4, false)}>{t('exportPng4Opaque')}</button>
+                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(2, true)}>{t('exportPng2Trans')}</button>
+                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportPNG(4, true)}>{t('exportPng4Trans')}</button>
                   <div className="border-t border-gray-600 my-1" />
-                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportSVG(false)}>SVG (opaque)</button>
-                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportSVG(true)}>SVG (transparent bg)</button>
+                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportSVG(false)}>{t('exportSvgOpaque')}</button>
+                  <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={() => handleExportSVG(true)}>{t('exportSvgTrans')}</button>
                 </div>
               )}
             </div>
@@ -324,8 +327,8 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport, on
             <span className="w-px h-5 bg-gray-600" />
 
             {/* Undo / Redo */}
-            <ToolbarBtn onClick={undo} disabled={past.length === 0} title="Undo (Ctrl+Z)">↩ Undo</ToolbarBtn>
-            <ToolbarBtn onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Y)">↪ Redo</ToolbarBtn>
+            <ToolbarBtn onClick={undo} disabled={past.length === 0} title={`${t('btnUndo')} (Ctrl+Z)`}>{t('btnUndo')}</ToolbarBtn>
+            <ToolbarBtn onClick={redo} disabled={future.length === 0} title={`${t('btnRedo')} (Ctrl+Y)`}>{t('btnRedo')}</ToolbarBtn>
           </>
         )}
 
@@ -333,19 +336,19 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport, on
         <span className="w-px h-5 bg-gray-600" />
 
         {/* Export Package – always visible */}
-        <ToolbarBtn onClick={handleExportPackage} disabled={isExporting} variant="primary" title="Export STL + PNG@4x + SVG">
-          Export Package
+        <ToolbarBtn onClick={handleExportPackage} disabled={isExporting} variant="primary" title={t('btnExportPackage')}>
+          {t('btnExportPackage')}
         </ToolbarBtn>
 
         {/* Legacy menu */}
         <div className="relative">
-          <ToolbarBtn onClick={() => setLegacyOpen(v => !v)} title="Legacy .keycap file operations">
-            Legacy ▾
+          <ToolbarBtn onClick={() => setLegacyOpen(v => !v)} title={t('btnLegacy')}>
+            {t('btnLegacy')}
           </ToolbarBtn>
           {legacyOpen && (
             <div className="absolute top-full right-0 mt-1 bg-gray-700 border border-gray-600 rounded shadow-lg z-50 min-w-max text-xs">
-              <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={handleImportKeycap}>Import .keycap (legends only)</button>
-              <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={handleExportKeycap}>Export .keycap</button>
+              <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={handleImportKeycap}>{t('legacyImport')}</button>
+              <button className="block w-full text-left px-3 py-2 hover:bg-gray-600" onClick={handleExportKeycap}>{t('legacyExport')}</button>
             </div>
           )}
         </div>
@@ -353,8 +356,11 @@ export default function DesignHeader({ mode, setMode, isExporting, runExport, on
         {/* Spacer */}
         <span className="flex-1" />
 
+        {/* Language switcher */}
+        <LangSwitcher />
+
         {/* Stage indicator */}
-        <StageIndicator mode={mode} />
+        <StageIndicator mode={mode} t={t} />
       </header>
     </>
   );

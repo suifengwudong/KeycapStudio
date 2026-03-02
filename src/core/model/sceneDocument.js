@@ -89,7 +89,7 @@ export function createKeycapNode(overrides = {}) {
       embossEnabled : false,
       embossText    : '',
       embossFontSize: 5,      // mm – recommended: 4–6 mm for 1u keys
-      embossDepth   : 0.4,    // mm – recommended: 0.3–0.6 mm for FDM printing
+      embossDepth   : 1.0,    // mm – 1.0 mm default for 3D preview visibility
       embossColor   : '#222222', // contrasting color for 3D preview visibility
       ...(paramOverrides ?? {}),
     },
