@@ -25,6 +25,76 @@ export class OptimizedKeycapGenerator {
   }
 
   /**
+   * 生成即时预览网格（超低精度，极快）
+   * 使用最少分段数 + computeVertexNormals 替代昂贵的 _smoothNormals
+   * 适合首次渲染展示，让用户立即看到图形
+   */
+  generateInstantPreview(params) {
+    const {
+      profile = 'Cherry',
+      size = '1u',
+    } = params;
+
+    const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
+    const dishDepth = params.dishDepth != null
+      ? Math.max(0, Math.min(3.0, params.dishDepth))
+      : CHERRY_DISH_DEPTH;
+
+    const profileData = PROFILES[profile] || PROFILES['Cherry'];
+    const sizeData = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
+    const height = params.height || profileData.baseHeight;
+    const bottomWidth = sizeData.width;
+    const bottomDepth = sizeData.depth;
+
+    // 固定最少分段数，不动态计算
+    const bottomShape = this._createRoundedRectShape(
+      bottomWidth / 2,
+      bottomDepth / 2,
+      topRadius,
+      8
+    );
+
+    const extrudePath = new THREE.LineCurve3(
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, height, 0)
+    );
+
+    const geometry = new THREE.ExtrudeGeometry(bottomShape, {
+      steps: 6,
+      bevelEnabled: false,
+      extrudePath,
+    });
+
+    this._applyKeycapDeformation(
+      geometry,
+      bottomWidth,
+      bottomDepth,
+      height,
+      CHERRY_TOP_WIDTH,
+      CHERRY_TOP_DEPTH,
+      dishDepth
+    );
+
+    // 使用内置法线计算替代昂贵的 _smoothNormals
+    geometry.computeVertexNormals();
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.35,
+      metalness: 0.08,
+      envMapIntensity: 1.0,
+      side: THREE.FrontSide,
+      flatShading: false,
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    return mesh;
+  }
+
+  /**
    * 生成预览网格（跳过 CSG，仅外壳，速度快）
    */
   generatePreview(params) {

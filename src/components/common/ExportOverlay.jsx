@@ -10,7 +10,7 @@
  *   onCancel    {function} – called when Cancel is clicked
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 /** Parse "Step X/Y" from stage text and return a 0–1 fraction, or null. */
 function parseProgress(stage) {
@@ -21,6 +21,14 @@ function parseProgress(stage) {
   return total > 0 ? current / total : null;
 }
 
+/** Format integer seconds as "Xs" or "Xm YYs". */
+function formatSeconds(seconds) {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}m ${String(s).padStart(2, '0')}s`;
+}
+
 export default function ExportOverlay({
   open,
   title = 'Exporting…',
@@ -28,9 +36,32 @@ export default function ExportOverlay({
   cancellable = false,
   onCancel,
 }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  // Reset and start elapsed-time counter whenever the overlay opens.
+  useEffect(() => {
+    if (!open) {
+      setElapsed(0);
+      return;
+    }
+    const startTime = Date.now();
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [open]);
+
   if (!open) return null;
 
   const progress = parseProgress(stage);
+
+  // Estimate remaining time once we have enough data.
+  // Require > 5% progress and ≥ 2 s elapsed to avoid wildly inaccurate early estimates.
+  let estimatedRemaining = null;
+  if (progress !== null && progress > 0.05 && elapsed >= 2) {
+    const totalEstimate = elapsed / progress;
+    estimatedRemaining = Math.max(0, Math.ceil(totalEstimate - elapsed));
+  }
 
   return (
     <div className="fixed inset-0 z-[1000] bg-black/40 flex items-center justify-center">
@@ -52,8 +83,13 @@ export default function ExportOverlay({
         </div>
 
         <div className="mt-2 flex items-center gap-2">
-          <div className="text-xs text-gray-400">Please wait…</div>
+          <div className="text-xs text-gray-400">
+            {elapsed > 0 ? `Elapsed: ${formatSeconds(elapsed)}` : 'Please wait…'}
+          </div>
           <span className="flex-1" />
+          {estimatedRemaining !== null && (
+            <div className="text-xs text-gray-400">~{formatSeconds(estimatedRemaining)} remaining</div>
+          )}
           {progress !== null && (
             <div className="text-xs text-gray-400">{Math.round(progress * 100)}%</div>
           )}
