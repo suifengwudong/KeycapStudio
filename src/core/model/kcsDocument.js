@@ -46,17 +46,22 @@ export function defaultShape3d() {
   return {
     engine: 'keycap-param-v1',
     params: {
-      profile      : 'Cherry',
-      size         : '1u',
-      color        : '#ffffff',
-      text         : 'A',
-      fontSize     : 14,
-      textDepth    : 0.5,
-      topRadius    : 0.5,
-      wallThickness: 1.5,
-      hasStem      : true,
-      texture      : 'smooth',
-      pattern      : null,
+      profile       : 'Cherry',
+      size          : '1u',
+      color         : '#ffffff',
+      text          : 'A',
+      fontSize      : 14,
+      textDepth     : 0.5,
+      topRadius     : 0.5,
+      wallThickness : 1.5,
+      hasStem       : true,
+      texture       : 'smooth',
+      pattern       : null,
+      // Text emboss (浮雕) parameters
+      embossEnabled : false,
+      embossText    : '',
+      embossFontSize: 5,      // mm – recommended: 4–6 mm for 1u keys
+      embossDepth   : 0.4,    // mm – recommended: 0.3–0.6 mm for FDM printing
     },
   };
 }

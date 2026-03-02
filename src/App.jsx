@@ -3,6 +3,7 @@ import DesignHeader   from './components/layout/DesignHeader';
 import InspectorPanel from './components/panels/InspectorPanel';
 import KeycapCanvas2D from './components/canvas/KeycapCanvas2D';
 import ExportOverlay  from './components/common/ExportOverlay';
+import PresetsGallery from './components/common/PresetsGallery';
 import { useAssetStore, readKcsAutosave } from './store/assetStore';
 import { useProjectStore } from './store/projectStore';
 import { startKcsAutosave, stopKcsAutosave } from './core/io/kcsIO';
@@ -23,6 +24,7 @@ function ThreeDFallback() {
 
 export default function App() {
   const [mode, setMode] = useState('3d'); // start in Shape (3D) – step 1 of the flow
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const loadAsset         = useAssetStore(s => s.loadAsset);
   const setUiContext      = useAssetStore(s => s.setUiContext);
   const setSelectedLegend = useProjectStore(s => s.setSelectedLegend);
@@ -43,7 +45,13 @@ export default function App() {
           if (ctx.mode) setMode(ctx.mode);
           if (ctx.selectedLegend) setSelectedLegend(ctx.selectedLegend);
         }
+      } else {
+        // No saved project – show preset gallery so user can start immediately
+        setPresetsOpen(true);
       }
+    } else {
+      // First launch: show preset gallery
+      setPresetsOpen(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -64,8 +72,17 @@ export default function App() {
       {/* Export overlay – blocks all interaction during export */}
       <ExportOverlay open={isExporting} stage={stage} />
 
+      {/* Preset gallery overlay */}
+      <PresetsGallery open={presetsOpen} onClose={() => setPresetsOpen(false)} />
+
       {/* Toolbar */}
-      <DesignHeader mode={mode} setMode={setMode} isExporting={isExporting} runExport={runExport} />
+      <DesignHeader
+        mode={mode}
+        setMode={setMode}
+        isExporting={isExporting}
+        runExport={runExport}
+        onOpenPresets={() => setPresetsOpen(true)}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         {mode === '2d' ? (
