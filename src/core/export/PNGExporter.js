@@ -9,6 +9,7 @@
  */
 
 import { presetPx, SIZE_PRESETS, UNIT_PX } from '../model/projectModel.js';
+import { triggerDownload } from '../io/browser.js';
 
 /**
  * Draw the keycap project onto a CanvasRenderingContext2D.
@@ -74,12 +75,7 @@ export function exportPNG(project, scale = 2, transparentBg = false, filename = 
   const defaultName = `keycap-${project.keycap.preset}-${scale}x.png`;
   canvas.toBlob((blob) => {
     if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a   = document.createElement('a');
-    a.href     = url;
-    a.download = filename ?? defaultName;
-    a.click();
-    URL.revokeObjectURL(url);
+    triggerDownload(blob, filename ?? defaultName);
   }, 'image/png');
 }
 

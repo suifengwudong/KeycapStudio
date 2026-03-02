@@ -19,6 +19,9 @@ const EMBOSS_FONT_SIZE_MIN  = 2;
 const EMBOSS_FONT_SIZE_MAX  = 10;
 const EMBOSS_DEPTH_MIN      = 0.1;
 const EMBOSS_DEPTH_MAX      = 2.0;
+
+// Module-level font singleton (parsed once, shared across all generator instances).
+let _font = null;
 function _getFont() {
   if (!_font) {
     const loader = new FontLoader();
@@ -46,21 +49,7 @@ export class OptimizedKeycapGenerator {
    * 适合首次渲染展示，让用户立即看到图形
    */
   generateInstantPreview(params) {
-    const {
-      profile = 'Cherry',
-      size = '1u',
-    } = params;
-
-    const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
-    const dishDepth = params.dishDepth != null
-      ? Math.max(0, Math.min(3.0, params.dishDepth))
-      : CHERRY_DISH_DEPTH;
-
-    const profileData = PROFILES[profile] || PROFILES['Cherry'];
-    const sizeData = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
-    const height = params.height || profileData.baseHeight;
-    const bottomWidth = sizeData.width;
-    const bottomDepth = sizeData.depth;
+    const { topRadius, dishDepth, height, bottomWidth, bottomDepth } = this._resolveParams(params);
 
     // 固定最少分段数，不动态计算
     const bottomShape = this._createRoundedRectShape(
@@ -114,21 +103,7 @@ export class OptimizedKeycapGenerator {
    * 生成预览网格（跳过 CSG，仅外壳，速度快）
    */
   generatePreview(params) {
-    const {
-      profile = 'Cherry',
-      size = '1u',
-    } = params;
-
-    const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
-    const dishDepth = params.dishDepth != null
-      ? Math.max(0, Math.min(3.0, params.dishDepth))
-      : CHERRY_DISH_DEPTH;
-
-    const profileData = PROFILES[profile] || PROFILES['Cherry'];
-    const sizeData = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
-    const height = params.height || profileData.baseHeight;
-    const bottomWidth = sizeData.width;
-    const bottomDepth = sizeData.depth;
+    const { topRadius, dishDepth, profileData, height, bottomWidth, bottomDepth } = this._resolveParams(params);
 
     const mesh = this._createHighQualityMesh(
       bottomWidth,
@@ -146,25 +121,10 @@ export class OptimizedKeycapGenerator {
    * 生成键帽网格
    */
   generate(params) {
-    const {
-      profile = 'Cherry',
-      size = '1u',
-      hasStem = true,
-    } = params;
-
-    // clamp 参数范围，防止 CSG/生成崩溃
-    const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
+    const { hasStem = true } = params;
     const wallThickness = Math.max(0.8, Math.min(3.5, params.wallThickness ?? 1.5));
-    const dishDepth = params.dishDepth != null
-      ? Math.max(0, Math.min(3.0, params.dishDepth))
-      : CHERRY_DISH_DEPTH;
-    
-    const profileData = PROFILES[profile] || PROFILES['Cherry'];
-    const sizeData = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
-    const height = params.height || profileData.baseHeight;
-    const bottomWidth = sizeData.width;
-    const bottomDepth = sizeData.depth;
-    
+    const { topRadius, dishDepth, profileData, height, bottomWidth, bottomDepth } = this._resolveParams(params);
+
     // 生成高质量外壳
     let mesh = this._createHighQualityMesh(
       bottomWidth, 
@@ -192,6 +152,38 @@ export class OptimizedKeycapGenerator {
     }
     
     return mesh;
+  }
+
+  /**
+   * Resolve and clamp all geometry-related parameters from a raw params object.
+   *
+   * Centralising this logic eliminates identical code in generateInstantPreview,
+   * generatePreview, and generate.
+   *
+   * @param {object} params – raw keycap params (from the scene node or keycapStore)
+   * @returns {{ topRadius, dishDepth, profileData, height, bottomWidth, bottomDepth }}
+   */
+  _resolveParams(params) {
+    const profile = params.profile ?? 'Cherry';
+    const size    = params.size    ?? '1u';
+
+    const topRadius  = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
+    const dishDepth  = params.dishDepth != null
+      ? Math.max(0, Math.min(3.0, params.dishDepth))
+      : CHERRY_DISH_DEPTH;
+
+    const profileData  = PROFILES[profile]  || PROFILES['Cherry'];
+    const sizeData     = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
+    const height       = params.height || profileData.baseHeight;
+
+    return {
+      topRadius,
+      dishDepth,
+      profileData,
+      height,
+      bottomWidth : sizeData.width,
+      bottomDepth : sizeData.depth,
+    };
   }
 
   /**
