@@ -102,7 +102,7 @@ export default function InspectorPanel() {
     <aside className="w-64 bg-gray-800 border-r border-gray-700 overflow-y-auto p-3 text-sm text-gray-200 flex-shrink-0">
       {/* Brief purpose note */}
       <p className="text-xs text-gray-500 mb-3 leading-snug">
-        Edits the printed label (legend) on a single keycap. Full keyboard layout preview is planned for v2.0.
+        编辑键帽上的标签（图例），支持主标签及辅助标签位置调整，可拖拽或使用方向键定位。
       </p>
       {/* ── 1. Size preset ──────────────────────────────────────────── */}
       <SectionTitle>Size Preset</SectionTitle>

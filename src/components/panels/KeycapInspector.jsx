@@ -61,7 +61,7 @@ export default function KeycapInspector({ node, onUpdate }) {
       {/* ── Color ────────────────────────────────────────────────── */}
       <div>
         <label className="block text-xs text-gray-400 mb-1">Color</label>
-        <ColorPicker value={p.color ?? '#cccccc'} onChange={c => setP('color', c)} />
+        <ColorPicker value={p.color ?? '#c8dff0'} onChange={c => setP('color', c)} />
       </div>
 
       {/* ── Top Radius ───────────────────────────────────────────── */}
@@ -181,13 +181,19 @@ export default function KeycapInspector({ node, onUpdate }) {
               unit="mm"
             />
 
+            {/* Emboss text color */}
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">浮雕颜色</label>
+              <ColorPicker value={p.embossColor ?? '#222222'} onChange={c => setP('embossColor', c)} />
+            </div>
+
             {/* Recommended parameter hints */}
             <div className="bg-gray-900/60 rounded p-2 text-xs text-gray-500 space-y-0.5">
               <div className="text-gray-400 font-medium mb-1">推荐参数</div>
               <div>• FDM 打印：深度 0.3–0.6 mm</div>
               <div>• 视觉效果：深度 0.5–1.0 mm</div>
               <div>• 1u 键帽字体：4–6 mm</div>
-              <div className="text-yellow-600 mt-1">⚠ 浮雕仅在 STL 导出中生效</div>
+              <div className="text-green-600 mt-1">✓ 浮雕在 3D 预览和 STL 导出中均可显示</div>
             </div>
           </>
         )}
