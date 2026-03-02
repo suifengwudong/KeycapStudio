@@ -64,21 +64,22 @@ function KeycapTemplateNode({ node }) {
   const [geoData, setGeoData] = useState(null);
   const cancelRef = useRef(false);
 
-  const profile       = p.profile       ?? 'Cherry';
-  const size          = p.size          ?? '1u';
-  const hasStem       = p.hasStem       ?? true;
-  const topRadius     = p.topRadius     ?? 0.5;
-  const wallThickness = p.wallThickness ?? 1.5;
+  const profile   = p.profile   ?? 'Cherry';
+  const size      = p.size      ?? '1u';
+  const topRadius = p.topRadius ?? 0.5;
+  // dishDepth / height may be null/undefined → _resolveParams falls back to profile defaults
+  const dishDepth = p.dishDepth;
+  const height    = p.height;
 
   useEffect(() => {
     cancelRef.current = false;
-    asyncGenerator.generatePreviewAsync({ profile, size, hasStem, topRadius, wallThickness })
+    asyncGenerator.generatePreviewAsync({ profile, size, topRadius, dishDepth, height })
       .then(result => {
         if (!cancelRef.current && result) setGeoData(result);
       })
       .catch(() => {});
     return () => { cancelRef.current = true; };
-  }, [profile, size, hasStem, topRadius, wallThickness]);
+  }, [profile, size, topRadius, dishDepth, height]);
 
   const color = p.color ?? '#ffffff';
   const material = useMemo(() => {
