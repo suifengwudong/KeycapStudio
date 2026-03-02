@@ -28,7 +28,7 @@ const _GEO_CACHE_MAX = 20;
  * Creates a new one via generateInstantPreview when there is a cache miss.
  */
 function _getPreviewGeometry(profile, size, topRadius, dishDepth, height) {
-  const r = (typeof topRadius === 'number' ? topRadius : 0.5).toFixed(2);
+  const r = typeof topRadius === 'number' ? topRadius.toFixed(2) : 'default';
   const d = typeof dishDepth === 'number' ? dishDepth.toFixed(2) : 'default';
   const h = typeof height    === 'number' ? height.toFixed(2)    : 'default';
   const key = `${profile}|${size}|${r}|${d}|${h}`;
@@ -39,7 +39,9 @@ function _getPreviewGeometry(profile, size, topRadius, dishDepth, height) {
     { profile, size, topRadius, dishDepth, height }
   ).geometry;
 
-  // Evict oldest entry when the cache is full (LRU)
+  // Evict the oldest (first-inserted) entry when the cache is full.
+  // This is a simple FIFO policy; the small cache size (20) makes it sufficient
+  // for typical editing sessions where only a handful of unique shapes are used.
   if (_geoCache.size >= _GEO_CACHE_MAX) {
     _geoCache.delete(_geoCache.keys().next().value);
   }
@@ -118,11 +120,11 @@ function KeycapTemplateNode({ node }) {
   }, [profile, size, topRadius, dishDepth, height]);
 
   if (!geometry) {
-    // Fallback for unexpected generation errors only
+    // Fallback rendered only when generateInstantPreview throws (should not occur in practice)
     return (
       <mesh position={pos} rotation={rot}>
         <boxGeometry args={[18, 11.5, 18]} />
-        <meshStandardMaterial color="#888888" transparent opacity={0.3} wireframe />
+        <meshStandardMaterial color="#333333" transparent opacity={0.3} wireframe />
       </mesh>
     );
   }
