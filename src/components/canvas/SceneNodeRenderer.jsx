@@ -3,12 +3,49 @@
  *
  * Preview pipeline: no CSG, fast.
  * Boolean nodes are rendered as transparent child overlays.
+ *
+ * Keycap preview strategy
+ * ───────────────────────
+ * Geometry is computed synchronously via useMemo so the keycap appears
+ * immediately on first render without a loading/placeholder phase.
+ * A module-level LRU cache avoids recomputing the same shape twice.
+ * Expensive CSG (stem hole, wall hollow) only runs at STL export time.
  */
 
-import React, { useRef, useEffect, useState, useMemo } from 'react';
-import * as THREE from 'three';
+import React, { useMemo } from 'react';
 import { NODE_TYPES } from '../../core/model/sceneDocument';
-import { asyncGenerator } from '../../core/geometry/generatorInstance';
+import { OptimizedKeycapGenerator } from '../../core/geometry/OptimizedKeycapGenerator';
+
+// ─── Module-level instant-preview generator + LRU cache ──────────────────────
+
+const _previewGen = new OptimizedKeycapGenerator();
+/** Keyed by shape-affecting params only (color / hasStem / wallThickness excluded). */
+const _geoCache = new Map();
+const _GEO_CACHE_MAX = 20;
+
+/**
+ * Return a cached THREE.BufferGeometry for the given preview params.
+ * Creates a new one via generateInstantPreview when there is a cache miss.
+ */
+function _getPreviewGeometry(profile, size, topRadius, dishDepth, height) {
+  const r = (typeof topRadius === 'number' ? topRadius : 0.5).toFixed(2);
+  const d = typeof dishDepth === 'number' ? dishDepth.toFixed(2) : 'default';
+  const h = typeof height    === 'number' ? height.toFixed(2)    : 'default';
+  const key = `${profile}|${size}|${r}|${d}|${h}`;
+
+  if (_geoCache.has(key)) return _geoCache.get(key);
+
+  const geo = _previewGen.generateInstantPreview(
+    { profile, size, topRadius, dishDepth, height }
+  ).geometry;
+
+  // Evict oldest entry when the cache is full (LRU)
+  if (_geoCache.size >= _GEO_CACHE_MAX) {
+    _geoCache.delete(_geoCache.keys().next().value);
+  }
+  _geoCache.set(key, geo);
+  return geo;
+}
 
 // ─── Primitive ────────────────────────────────────────────────────────────────
 
@@ -61,53 +98,39 @@ function KeycapTemplateNode({ node }) {
   const pos = node.position ?? [0, 0, 0];
   const rot = node.rotation ?? [0, 0, 0];
 
-  const [geoData, setGeoData] = useState(null);
-  const cancelRef = useRef(false);
-
   const profile   = p.profile   ?? 'Cherry';
   const size      = p.size      ?? '1u';
   const topRadius = p.topRadius ?? 0.5;
-  // dishDepth / height may be null/undefined → _resolveParams falls back to profile defaults
+  // dishDepth / height may be null → _resolveParams falls back to profile defaults
   const dishDepth = p.dishDepth;
   const height    = p.height;
+  const color     = p.color ?? '#ffffff';
 
-  useEffect(() => {
-    cancelRef.current = false;
-    asyncGenerator.generatePreviewAsync({ profile, size, topRadius, dishDepth, height })
-      .then(result => {
-        if (!cancelRef.current && result) setGeoData(result);
-      })
-      .catch(() => {});
-    return () => { cancelRef.current = true; };
+  // Synchronous geometry lookup: no loading state, keycap renders on first frame.
+  // Only recomputes when shape-affecting params change; color/hasStem/wallThickness
+  // do not affect the preview mesh so they are intentionally excluded.
+  const geometry = useMemo(() => {
+    try {
+      return _getPreviewGeometry(profile, size, topRadius, dishDepth, height);
+    } catch {
+      return null;
+    }
   }, [profile, size, topRadius, dishDepth, height]);
 
-  const color = p.color ?? '#ffffff';
-  const material = useMemo(() => {
-    if (!geoData?.material) return null;
-    const mat = geoData.material.clone();
-    mat.color.set(color);
-    return mat;
-  }, [color, geoData]);
-
-  if (!geoData) {
-    // Placeholder box while loading
+  if (!geometry) {
+    // Fallback for unexpected generation errors only
     return (
       <mesh position={pos} rotation={rot}>
         <boxGeometry args={[18, 11.5, 18]} />
-        <meshStandardMaterial color="#333333" transparent opacity={0.3} wireframe />
+        <meshStandardMaterial color="#888888" transparent opacity={0.3} wireframe />
       </mesh>
     );
   }
 
   return (
-    <mesh
-      position={pos}
-      rotation={rot}
-      geometry={geoData.geometry}
-      material={material}
-      castShadow
-      receiveShadow
-    />
+    <mesh position={pos} rotation={rot} geometry={geometry} castShadow receiveShadow>
+      <meshStandardMaterial color={color} roughness={0.35} metalness={0.08} />
+    </mesh>
   );
 }
 
