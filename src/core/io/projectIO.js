@@ -8,7 +8,6 @@
  */
 
 import { serialiseProject, deserialiseProject } from '../model/projectModel.js';
-import { triggerDownload, pickFile } from './browser.js';
 
 const AUTOSAVE_KEY = 'keycap-studio-autosave';
 const AUTOSAVE_INTERVAL_MS = 30_000; // 30 s
@@ -20,8 +19,22 @@ const AUTOSAVE_INTERVAL_MS = 30_000; // 30 s
  * @returns {Promise<object>}
  */
 export async function openProjectFile() {
-  const text = await pickFile('.keycap,application/json');
-  return deserialiseProject(text);
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.keycap,application/json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) { reject(new Error('No file selected')); return; }
+      try {
+        const text = await file.text();
+        resolve(deserialiseProject(text));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    input.click();
+  });
 }
 
 /**
@@ -30,8 +43,14 @@ export async function openProjectFile() {
  * @param {string} [filename]
  */
 export function saveProjectFile(project, filename = 'project.keycap') {
-  const blob = new Blob([serialiseProject(project)], { type: 'application/json' });
-  triggerDownload(blob, filename);
+  const json = serialiseProject(project);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ---------- autosave ----------

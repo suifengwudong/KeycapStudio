@@ -9,7 +9,6 @@ import {
   serialiseKcsDocument,
   deserialiseKcsDocument,
 } from '../model/kcsDocument.js';
-import { triggerDownload, pickFile } from './browser.js';
 
 export const KCS_AUTOSAVE_KEY = 'kcs_autosave_v1';
 
@@ -20,8 +19,22 @@ export const KCS_AUTOSAVE_KEY = 'kcs_autosave_v1';
  * @returns {Promise<object>}
  */
 export async function openKcsFile() {
-  const text = await pickFile('.kcs.json,.json');
-  return deserialiseKcsDocument(text);
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.kcs.json,.json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) { reject(new Error('No file selected')); return; }
+      try {
+        const text = await file.text();
+        resolve(deserialiseKcsDocument(text));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    input.click();
+  });
 }
 
 /**
@@ -30,8 +43,16 @@ export async function openKcsFile() {
  * @param {string} [filename]
  */
 export function saveKcsFile(doc, filename = 'project.kcs.json') {
-  const blob = new Blob([serialiseKcsDocument(doc)], { type: 'application/json' });
-  triggerDownload(blob, filename);
+  const json = serialiseKcsDocument(doc);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ─── Autosave ────────────────────────────────────────────────────────────────

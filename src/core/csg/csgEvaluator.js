@@ -13,7 +13,6 @@
 
 import { STLExporter as ThreeSTLExporter } from 'three/examples/jsm/exporters/STLExporter';
 import { evalNode, evalScene } from '../geometry/geometryEngine';
-import { triggerDownload } from '../io/browser.js';
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -142,5 +141,9 @@ export async function exportSceneSTL(scene, filename = 'scene.stl', onStage) {
 
   onStage?.('Step 3/3: Writing STL file…');
   const blob = new Blob([stlBytes], { type: 'application/octet-stream' });
-  triggerDownload(blob, filename);
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }

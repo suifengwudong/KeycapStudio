@@ -7,7 +7,6 @@
  */
 
 import { presetPx } from '../model/projectModel.js';
-import { triggerDownload } from '../io/browser.js';
 
 /**
  * Generate an SVG string for the given project.
@@ -63,7 +62,12 @@ export function generateSVG(project, transparentBg = false) {
 export function exportSVG(project, transparentBg = false, filename = null) {
   const svg  = generateSVG(project, transparentBg);
   const blob = new Blob([svg], { type: 'image/svg+xml' });
-  triggerDownload(blob, filename ?? `keycap-${project.keycap.preset}.svg`);
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename ?? `keycap-${project.keycap.preset}.svg`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ---------- helpers ----------
