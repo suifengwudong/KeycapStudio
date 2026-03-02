@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { CSG } from 'three-csg-ts';
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
+import helvetikerBoldData from 'three/examples/fonts/helvetiker_bold.typeface.json';
 import { PROFILES, KEYCAP_SIZES } from '../../constants/profiles';
 import {
   CHERRY_TOP_WIDTH,
@@ -10,6 +13,22 @@ import {
   CHERRY_STEM_DEPTH,
   CHERRY_SMOOTH_ANGLE,
 } from '../../constants/cherry';
+
+/** Recommended emboss parameter bounds (kept in sync with KeycapInspector sliders). */
+const EMBOSS_FONT_SIZE_MIN  = 2;
+const EMBOSS_FONT_SIZE_MAX  = 10;
+const EMBOSS_DEPTH_MIN      = 0.1;
+const EMBOSS_DEPTH_MAX      = 2.0;
+
+// Module-level font singleton (parsed once, shared across all generator instances).
+let _font = null;
+function _getFont() {
+  if (!_font) {
+    const loader = new FontLoader();
+    _font = loader.parse(helvetikerBoldData);
+  }
+  return _font;
+}
 
 /**
  * 优化的键帽生成器 - 高质量 + 高性能
@@ -25,24 +44,66 @@ export class OptimizedKeycapGenerator {
   }
 
   /**
+   * 生成即时预览网格（超低精度，极快）
+   * 使用最少分段数 + computeVertexNormals 替代昂贵的 _smoothNormals
+   * 适合首次渲染展示，让用户立即看到图形
+   */
+  generateInstantPreview(params) {
+    const { topRadius, dishDepth, height, bottomWidth, bottomDepth } = this._resolveParams(params);
+
+    // 固定最少分段数，不动态计算
+    const bottomShape = this._createRoundedRectShape(
+      bottomWidth / 2,
+      bottomDepth / 2,
+      topRadius,
+      8
+    );
+
+    const extrudePath = new THREE.LineCurve3(
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, height, 0)
+    );
+
+    const geometry = new THREE.ExtrudeGeometry(bottomShape, {
+      steps: 6,
+      bevelEnabled: false,
+      extrudePath,
+    });
+
+    this._applyKeycapDeformation(
+      geometry,
+      bottomWidth,
+      bottomDepth,
+      height,
+      CHERRY_TOP_WIDTH,
+      CHERRY_TOP_DEPTH,
+      dishDepth
+    );
+
+    // 使用内置法线计算替代昂贵的 _smoothNormals
+    geometry.computeVertexNormals();
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.35,
+      metalness: 0.08,
+      envMapIntensity: 1.0,
+      side: THREE.FrontSide,
+      flatShading: false,
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    return mesh;
+  }
+
+  /**
    * 生成预览网格（跳过 CSG，仅外壳，速度快）
    */
   generatePreview(params) {
-    const {
-      profile = 'Cherry',
-      size = '1u',
-    } = params;
-
-    const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
-    const dishDepth = params.dishDepth != null
-      ? Math.max(0, Math.min(3.0, params.dishDepth))
-      : CHERRY_DISH_DEPTH;
-
-    const profileData = PROFILES[profile] || PROFILES['Cherry'];
-    const sizeData = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
-    const height = params.height || profileData.baseHeight;
-    const bottomWidth = sizeData.width;
-    const bottomDepth = sizeData.depth;
+    const { topRadius, dishDepth, profileData, height, bottomWidth, bottomDepth } = this._resolveParams(params);
 
     const mesh = this._createHighQualityMesh(
       bottomWidth,
@@ -60,25 +121,10 @@ export class OptimizedKeycapGenerator {
    * 生成键帽网格
    */
   generate(params) {
-    const {
-      profile = 'Cherry',
-      size = '1u',
-      hasStem = true,
-    } = params;
-
-    // clamp 参数范围，防止 CSG/生成崩溃
-    const topRadius = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
+    const { hasStem = true } = params;
     const wallThickness = Math.max(0.8, Math.min(3.5, params.wallThickness ?? 1.5));
-    const dishDepth = params.dishDepth != null
-      ? Math.max(0, Math.min(3.0, params.dishDepth))
-      : CHERRY_DISH_DEPTH;
-    
-    const profileData = PROFILES[profile] || PROFILES['Cherry'];
-    const sizeData = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
-    const height = params.height || profileData.baseHeight;
-    const bottomWidth = sizeData.width;
-    const bottomDepth = sizeData.depth;
-    
+    const { topRadius, dishDepth, profileData, height, bottomWidth, bottomDepth } = this._resolveParams(params);
+
     // 生成高质量外壳
     let mesh = this._createHighQualityMesh(
       bottomWidth, 
@@ -99,8 +145,45 @@ export class OptimizedKeycapGenerator {
         hasStem
       );
     }
+
+    // 文字浮雕（如已启用）
+    if (params.embossEnabled && params.embossText?.trim()) {
+      mesh = this._applyTextEmboss(mesh, params, height);
+    }
     
     return mesh;
+  }
+
+  /**
+   * Resolve and clamp all geometry-related parameters from a raw params object.
+   *
+   * Centralising this logic eliminates identical code in generateInstantPreview,
+   * generatePreview, and generate.
+   *
+   * @param {object} params – raw keycap params (from the scene node or keycapStore)
+   * @returns {{ topRadius, dishDepth, profileData, height, bottomWidth, bottomDepth }}
+   */
+  _resolveParams(params) {
+    const profile = params.profile ?? 'Cherry';
+    const size    = params.size    ?? '1u';
+
+    const topRadius  = Math.max(0.1, Math.min(3.0, params.topRadius ?? 0.5));
+    const dishDepth  = params.dishDepth != null
+      ? Math.max(0, Math.min(3.0, params.dishDepth))
+      : CHERRY_DISH_DEPTH;
+
+    const profileData  = PROFILES[profile]  || PROFILES['Cherry'];
+    const sizeData     = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
+    const height       = params.height || profileData.baseHeight;
+
+    return {
+      topRadius,
+      dishDepth,
+      profileData,
+      height,
+      bottomWidth : sizeData.width,
+      bottomDepth : sizeData.depth,
+    };
   }
 
   /**
@@ -454,6 +537,57 @@ export class OptimizedKeycapGenerator {
     const vBox = new THREE.BoxGeometry(CHERRY_CROSS_THICK, CHERRY_STEM_DEPTH, CHERRY_CROSS_SIZE);
     
     return { hBox, vBox, stemDepth: CHERRY_STEM_DEPTH };
+  }
+
+  /**
+   * 在键帽顶面添加文字浮雕（CSG union）
+   *
+   * 推荐参数：
+   *   embossFontSize  4–6 mm（1u 键帽）
+   *   embossDepth     0.3–0.6 mm（FDM 打印可识别范围）
+   *
+   * @param {THREE.Mesh} mesh          – 已生成的键帽网格
+   * @param {object}     params        – shape params
+   * @param {number}     keycapHeight  – 键帽高度（mm）
+   * @returns {THREE.Mesh}
+   */
+  _applyTextEmboss(mesh, params, keycapHeight) {
+    const text      = params.embossText.trim();
+    const fontSize  = Math.max(EMBOSS_FONT_SIZE_MIN, Math.min(EMBOSS_FONT_SIZE_MAX, params.embossFontSize ?? 5));
+    const depth     = Math.max(EMBOSS_DEPTH_MIN, Math.min(EMBOSS_DEPTH_MAX, params.embossDepth ?? 0.4));
+
+    try {
+      const font    = _getFont();
+      const textGeo = new TextGeometry(text, {
+        font,
+        size          : fontSize,
+        height        : depth,
+        curveSegments : 4,
+        bevelEnabled  : false,
+      });
+
+      // Center text in X/Z and place its bottom face at the keycap top surface.
+      textGeo.computeBoundingBox();
+      const bb     = textGeo.boundingBox;
+      const cx     = (bb.max.x + bb.min.x) / 2;
+      const cz     = (bb.max.z + bb.min.z) / 2;
+      // y: place emboss so its base is just below the keycap top (for solid overlap)
+      textGeo.translate(-cx, keycapHeight - depth * 0.5, -cz);
+
+      const textMesh = new THREE.Mesh(textGeo, mesh.material);
+      textMesh.updateMatrix();
+      mesh.updateMatrix();
+
+      const resultCSG = CSG.fromMesh(mesh).union(CSG.fromMesh(textMesh));
+      const result    = CSG.toMesh(resultCSG, mesh.matrix, mesh.material);
+      result.geometry.computeVertexNormals();
+      result.castShadow    = true;
+      result.receiveShadow = true;
+      return result;
+    } catch (err) {
+      console.warn('Text emboss skipped:', err);
+      return mesh;
+    }
   }
 
   /**
