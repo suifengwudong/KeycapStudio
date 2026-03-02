@@ -59,7 +59,7 @@ export function createPrimitive(primitive = 'box', overrides = {}) {
     name     : primitive.charAt(0).toUpperCase() + primitive.slice(1),
     primitive,
     params   : { ...defaults, ...(paramOverrides ?? {}) },
-    material : { color: '#cccccc', ...(materialOverrides ?? {}) },
+    material : { color: '#c8dff0', ...(materialOverrides ?? {}) },
     position : [0, 0, 0],
     rotation : [0, 0, 0],
     ...rest,
@@ -79,7 +79,7 @@ export function createKeycapNode(overrides = {}) {
     params   : {
       profile       : 'Cherry',
       size          : '1u',
-      color         : '#cccccc',
+      color         : '#c8dff0',
       hasStem       : true,
       topRadius     : 0.5,
       wallThickness : 1.5,
@@ -90,6 +90,7 @@ export function createKeycapNode(overrides = {}) {
       embossText    : '',
       embossFontSize: 5,      // mm – recommended: 4–6 mm for 1u keys
       embossDepth   : 0.4,    // mm – recommended: 0.3–0.6 mm for FDM printing
+      embossColor   : '#222222', // contrasting color for 3D preview visibility
       ...(paramOverrides ?? {}),
     },
     position : [0, 0, 0],

@@ -66,7 +66,7 @@ function PrimitiveInspector({ node, onUpdate }) {
       )}
       <div>
         <label className="block text-xs text-gray-400 mb-1">Color</label>
-        <ColorPicker value={node.material?.color ?? '#cccccc'} onChange={setMat} />
+        <ColorPicker value={node.material?.color ?? '#c8dff0'} onChange={setMat} />
       </div>
     </>
   );
