@@ -22,11 +22,9 @@ import {
   writeKcsAutosave,
   readKcsAutosave,
 } from '../core/io/kcsIO.js';
+import { clone } from '../core/utils.js';
 import { useProjectStore } from './projectStore.js';
 import { useKeycapStore } from './keycapStore.js';
-
-/** Deep-clone via JSON (safe for plain-data assets). */
-function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 
