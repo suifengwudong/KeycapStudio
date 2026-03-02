@@ -13,8 +13,14 @@
  */
 
 import React, { useMemo } from 'react';
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import { NODE_TYPES } from '../../core/model/sceneDocument';
-import { OptimizedKeycapGenerator } from '../../core/geometry/OptimizedKeycapGenerator';
+import { PROFILES } from '../../constants/profiles';
+import {
+  CHERRY_CROSS_SIZE,
+  CHERRY_CROSS_THICK,
+} from '../../constants/cherry';
+import { OptimizedKeycapGenerator, getKeycapFont } from '../../core/geometry/OptimizedKeycapGenerator';
 
 // ─── Module-level instant-preview generator + LRU cache ──────────────────────
 
@@ -95,6 +101,10 @@ function PrimitiveNode({ node }) {
 
 // ─── KeycapTemplate ───────────────────────────────────────────────────────────
 
+// Height (mm) of the stem cross indicator slab: half protrudes below keycap
+// bottom so it is visible when the user rotates to look from below.
+const STEM_INDICATOR_H = 1.0;
+
 function KeycapTemplateNode({ node }) {
   const p   = node.params   ?? {};
   const pos = node.position ?? [0, 0, 0];
@@ -107,6 +117,12 @@ function KeycapTemplateNode({ node }) {
   const dishDepth = p.dishDepth;
   const height    = p.height;
   const color     = p.color ?? '#ffffff';
+  const hasStem   = p.hasStem ?? true;
+
+  // Resolve actual keycap height for overlay positioning.
+  const resolvedHeight = height != null
+    ? height
+    : (PROFILES[profile] ?? PROFILES['Cherry']).baseHeight;
 
   // Synchronous geometry lookup: no loading state, keycap renders on first frame.
   // Only recomputes when shape-affecting params change; color/hasStem/wallThickness
@@ -119,6 +135,37 @@ function KeycapTemplateNode({ node }) {
     }
   }, [profile, size, topRadius, dishDepth, height]);
 
+  // Emboss text geometry (optional) ─────────────────────────────────────────
+  // TextGeometry is created synchronously using the module-level font singleton.
+  // The geometry is centred in the XY plane (before rotation); a -π/2 rotation
+  // around X lays it flat on the horizontal keycap top surface.
+  const embossEnabled  = p.embossEnabled ?? false;
+  const embossText     = (p.embossText ?? '').trim();
+  const embossFontSize = p.embossFontSize ?? 5;
+  const embossDepth    = p.embossDepth ?? 0.4;
+
+  const embossGeo = useMemo(() => {
+    if (!embossEnabled || !embossText) return null;
+    try {
+      const font = getKeycapFont();
+      if (!font) return null;
+      const geo  = new TextGeometry(embossText, {
+        font,
+        size         : Math.max(2, Math.min(10, embossFontSize)),
+        height       : Math.max(0.1, Math.min(2.0, embossDepth)),
+        curveSegments: 4,
+        bevelEnabled : false,
+      });
+      geo.computeBoundingBox();
+      const { min, max } = geo.boundingBox;
+      // Centre in XY before rotation (after -π/2 around X, X stays X and Y→Z)
+      geo.translate(-(max.x + min.x) / 2, -(max.y + min.y) / 2, 0);
+      return geo;
+    } catch {
+      return null;
+    }
+  }, [embossEnabled, embossText, embossFontSize, embossDepth]);
+
   if (!geometry) {
     // Fallback rendered only when generateInstantPreview throws (should not occur in practice)
     return (
@@ -130,9 +177,44 @@ function KeycapTemplateNode({ node }) {
   }
 
   return (
-    <mesh position={pos} rotation={rot} geometry={geometry} castShadow receiveShadow>
-      <meshStandardMaterial color={color} roughness={0.35} metalness={0.08} />
-    </mesh>
+    <group position={pos} rotation={rot}>
+      {/* Keycap outer shell */}
+      <mesh geometry={geometry} castShadow receiveShadow>
+        <meshStandardMaterial color={color} roughness={0.35} metalness={0.08} />
+      </mesh>
+
+      {/* Cherry MX stem hole indicator ─────────────────────────────────────
+          A dark cross slab centred at y = −STEM_INDICATOR_H/2 so its lower half
+          protrudes below the keycap bottom face (y = 0) and is clearly visible
+          when the user orbits to look from underneath. */}
+      {hasStem && (
+        <>
+          <mesh position={[0, -STEM_INDICATOR_H / 2, 0]}>
+            <boxGeometry args={[CHERRY_CROSS_SIZE, STEM_INDICATOR_H, CHERRY_CROSS_THICK]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={1} metalness={0} />
+          </mesh>
+          <mesh position={[0, -STEM_INDICATOR_H / 2, 0]}>
+            <boxGeometry args={[CHERRY_CROSS_THICK, STEM_INDICATOR_H, CHERRY_CROSS_SIZE]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={1} metalness={0} />
+          </mesh>
+        </>
+      )}
+
+      {/* Emboss text preview ──────────────────────────────────────────────
+          TextGeometry (XY plane, extruding +Z) is rotated -π/2 around X so it
+          lies flat in the XZ plane extruding upward (+Y) from the keycap top.
+          A 0.05 mm clearance avoids z-fighting with the dish surface. */}
+      {embossGeo && (
+        <mesh
+          geometry={embossGeo}
+          position={[0, resolvedHeight + 0.05, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          castShadow
+        >
+          <meshStandardMaterial color={color} roughness={0.35} metalness={0.08} />
+        </mesh>
+      )}
+    </group>
   );
 }
 
