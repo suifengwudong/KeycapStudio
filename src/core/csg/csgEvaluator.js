@@ -6,135 +6,13 @@
  *   export  – full CSG via three-csg-ts; produces a watertight mesh for STL.
  *
  * Units: millimetres (matches sceneDocument).
+ *
+ * The heavy geometry evaluation logic lives in geometryEngine.js, which is
+ * also imported by stlExportWorker.js so the implementation is not duplicated.
  */
 
-import * as THREE from 'three';
-import { CSG } from 'three-csg-ts';
 import { STLExporter as ThreeSTLExporter } from 'three/examples/jsm/exporters/STLExporter';
-import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { OptimizedKeycapGenerator } from '../geometry/OptimizedKeycapGenerator';
-import { NODE_TYPES } from '../model/sceneDocument';
-
-const _generator = new OptimizedKeycapGenerator();
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function _material(node) {
-  const color = node.material?.color ?? '#cccccc';
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.08 });
-}
-
-function _applyTransform(obj, node) {
-  if (node.position) obj.position.fromArray(node.position);
-  if (node.rotation) obj.rotation.fromArray(node.rotation);
-  obj.updateMatrix();
-  obj.updateMatrixWorld(true);
-}
-
-// ─── Node evaluators ──────────────────────────────────────────────────────────
-
-function _evalPrimitive(node) {
-  const p = node.params ?? {};
-  let geometry;
-  switch (node.primitive) {
-    case 'cylinder':
-      geometry = new THREE.CylinderGeometry(
-        p.radiusTop    ?? 9,
-        p.radiusBottom ?? 9,
-        p.height       ?? 11.5,
-        p.radialSegments ?? 32,
-      );
-      break;
-    case 'sphere':
-      geometry = new THREE.SphereGeometry(
-        p.radius         ?? 9,
-        p.widthSegments  ?? 32,
-        p.heightSegments ?? 16,
-      );
-      break;
-    case 'box':
-    default:
-      geometry = new THREE.BoxGeometry(
-        p.width  ?? 18,
-        p.height ?? 11.5,
-        p.depth  ?? 18,
-      );
-  }
-  const mesh = new THREE.Mesh(geometry, _material(node));
-  _applyTransform(mesh, node);
-  return mesh;
-}
-
-function _evalKeycap(node, mode) {
-  const p = node.params ?? {};
-  _generator.setPerformanceMode(mode === 'export' ? 'quality' : 'balanced');
-  const mesh = mode === 'export'
-    ? _generator.generate(p)
-    : _generator.generatePreview(p);
-  mesh.material.color.set(p.color ?? '#ffffff');
-  _applyTransform(mesh, node);
-  return mesh;
-}
-
-function _evalBoolean(node, mode) {
-  const children = node.children ?? [];
-
-  if (mode === 'preview') {
-    // Preview: render children without CSG (first child opaque, rest ghost)
-    const group = new THREE.Group();
-    children.forEach((child, i) => {
-      const obj = evaluateNode(child, mode);
-      if (!obj) return;
-      if (i > 0 && obj.material) {
-        obj.material = obj.material.clone();
-        obj.material.transparent = true;
-        obj.material.opacity = 0.25;
-      }
-      group.add(obj);
-    });
-    _applyTransform(group, node);
-    return group;
-  }
-
-  // Export: full CSG
-  if (children.length === 0) return null;
-  if (children.length === 1) return evaluateNode(children[0], mode);
-
-  const base = evaluateNode(children[0], mode);
-  if (!base) return null;
-  base.updateMatrix();
-
-  let resultCSG = CSG.fromMesh(base);
-
-  for (let i = 1; i < children.length; i++) {
-    const child = evaluateNode(children[i], mode);
-    if (!child) continue;
-    child.updateMatrix();
-    const childCSG = CSG.fromMesh(child);
-    switch (node.operation) {
-      case 'union'    : resultCSG = resultCSG.union(childCSG);     break;
-      case 'intersect': resultCSG = resultCSG.intersect(childCSG); break;
-      case 'subtract' :
-      default          : resultCSG = resultCSG.subtract(childCSG);
-    }
-  }
-
-  const result = CSG.toMesh(resultCSG, new THREE.Matrix4(), base.material);
-  result.geometry = mergeVertices(result.geometry);
-  result.geometry.computeVertexNormals();
-  _applyTransform(result, node);
-  return result;
-}
-
-function _evalGroup(node, mode) {
-  const group = new THREE.Group();
-  for (const child of node.children ?? []) {
-    const obj = evaluateNode(child, mode);
-    if (obj) group.add(obj);
-  }
-  _applyTransform(group, node);
-  return group;
-}
+import { evalNode, evalScene } from '../geometry/geometryEngine';
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -146,14 +24,7 @@ function _evalGroup(node, mode) {
  * @returns {THREE.Object3D|null}
  */
 export function evaluateNode(node, mode = 'preview') {
-  if (!node) return null;
-  switch (node.type) {
-    case NODE_TYPES.PRIMITIVE: return _evalPrimitive(node);
-    case NODE_TYPES.KEYCAP   : return _evalKeycap(node, mode);
-    case NODE_TYPES.BOOLEAN  : return _evalBoolean(node, mode);
-    case NODE_TYPES.GROUP    : return _evalGroup(node, mode);
-    default: return null;
-  }
+  return evalNode(node, mode);
 }
 
 /**
@@ -164,9 +35,7 @@ export function evaluateNode(node, mode = 'preview') {
  * @returns {THREE.Group}
  */
 export function evaluateScene(scene, mode = 'preview') {
-  if (!scene?.root) return new THREE.Group();
-  const result = evaluateNode(scene.root, mode);
-  return result ?? new THREE.Group();
+  return evalScene(scene, mode);
 }
 
 /** Yield to the browser so the UI can update before heavy work. */
@@ -174,8 +43,53 @@ function nextFrame() {
   return new Promise(resolve => requestAnimationFrame(resolve));
 }
 
+// ─── Persistent worker singleton ─────────────────────────────────────────────
+//
+// A single worker instance is reused across export calls.  This allows the
+// in-process geometry cache inside the worker's copy of geometryEngine.js to
+// survive between exports, so unchanged keycap shapes are never re-computed.
+
+let _worker = null;
+const _exportQueue = [];
+
+function _getOrCreateWorker() {
+  if (_worker) return _worker;
+
+  const w = new Worker(
+    new URL('../../workers/stlExportWorker.js', import.meta.url),
+    { type: 'module' },
+  );
+
+  w.onmessage = (e) => {
+    const cb = _exportQueue.shift();
+    if (!cb) {
+      // Orphaned message (e.g. arrived after a queue drain on worker crash) – ignore.
+      return;
+    }
+    if (e.data.error) {
+      cb.reject(new Error(e.data.error));
+    } else {
+      cb.resolve(new Uint8Array(e.data.buffer));
+    }
+  };
+
+  w.onerror = (event) => {
+    // Reset on crash so the next call gets a fresh worker.
+    _worker = null;
+    const cb = _exportQueue.shift();
+    if (cb) cb.reject(new Error(event.message ?? 'Worker error'));
+    // Drain any remaining queued exports.
+    while (_exportQueue.length) {
+      _exportQueue.shift().reject(new Error('Worker crashed'));
+    }
+  };
+
+  _worker = w;
+  return w;
+}
+
 /**
- * Run the CSG evaluation + STL serialisation in a dedicated Web Worker and
+ * Run the CSG evaluation + STL serialisation in the persistent Web Worker and
  * return the binary buffer.  Falls back to main-thread evaluation if workers
  * are unavailable.
  *
@@ -185,25 +99,11 @@ function nextFrame() {
 function _exportInWorker(scene) {
   return new Promise((resolve, reject) => {
     try {
-      const worker = new Worker(
-        new URL('../../workers/stlExportWorker.js', import.meta.url),
-        { type: 'module' },
-      );
-      worker.onmessage = (e) => {
-        worker.terminate();
-        if (e.data.error) {
-          reject(new Error(e.data.error));
-        } else {
-          resolve(new Uint8Array(e.data.buffer));
-        }
-      };
-      worker.onerror = (event) => {
-        worker.terminate();
-        reject(new Error(event.message ?? 'Worker error'));
-      };
+      const worker = _getOrCreateWorker();
+      _exportQueue.push({ resolve, reject });
       worker.postMessage({ scene });
     } catch (err) {
-      // Worker construction failed (e.g. in test environments) – fall back
+      // Worker construction failed (e.g. in test environments) – fall back.
       reject(new Error('worker_unavailable', { cause: err }));
     }
   });
