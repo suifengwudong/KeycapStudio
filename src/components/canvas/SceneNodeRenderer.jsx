@@ -12,14 +12,12 @@
  * Expensive CSG (stem hole, wall hollow) only runs at STL export time.
  */
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import * as THREE from 'three';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import { NODE_TYPES } from '../../core/model/sceneDocument';
 import { PROFILES } from '../../constants/profiles';
-import {
-  CHERRY_CROSS_SIZE,
-  CHERRY_CROSS_THICK,
-} from '../../constants/cherry';
+import { CHERRY_CROSS_SIZE } from '../../constants/cherry';
 import { OptimizedKeycapGenerator, getKeycapFont } from '../../core/geometry/OptimizedKeycapGenerator';
 
 // ─── Module-level instant-preview generator + LRU cache ──────────────────────
@@ -101,10 +99,6 @@ function PrimitiveNode({ node }) {
 
 // ─── KeycapTemplate ───────────────────────────────────────────────────────────
 
-// Height (mm) of the stem cross indicator slab: half protrudes below keycap
-// bottom so it is visible when the user rotates to look from below.
-const STEM_INDICATOR_H = 1.0;
-
 function KeycapTemplateNode({ node }) {
   const p   = node.params   ?? {};
   const pos = node.position ?? [0, 0, 0];
@@ -116,7 +110,7 @@ function KeycapTemplateNode({ node }) {
   // dishDepth / height may be null → _resolveParams falls back to profile defaults
   const dishDepth = p.dishDepth;
   const height    = p.height;
-  const color     = p.color ?? '#ffffff';
+  const color     = p.color ?? '#cccccc';
   const hasStem   = p.hasStem ?? true;
 
   // Resolve actual keycap height for overlay positioning.
@@ -134,6 +128,37 @@ function KeycapTemplateNode({ node }) {
       return null;
     }
   }, [profile, size, topRadius, dishDepth, height]);
+
+  // Cherry MX stem hole dashed-line cross indicator ─────────────────────────
+  // Two perpendicular LineSegments in the XZ plane using LineDashedMaterial
+  // so the indicator is visually distinct from the keycap body.
+  // Created once per component instance (deps are constants).
+  const stemDashLines = useMemo(() => {
+    const positions = new Float32Array([
+      // Horizontal arm (along X)
+      -CHERRY_CROSS_SIZE / 2, 0, 0,
+       CHERRY_CROSS_SIZE / 2, 0, 0,
+      // Lateral arm (along Z)
+      0, 0, -CHERRY_CROSS_SIZE / 2,
+      0, 0,  CHERRY_CROSS_SIZE / 2,
+    ]);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.LineDashedMaterial({ color: '#ff6600', dashSize: 0.8, gapSize: 0.4 });
+    const lines = new THREE.LineSegments(geo, mat);
+    lines.computeLineDistances();
+    // Set position here so the primitive element needs no prop update each render.
+    lines.position.set(0, -0.1, 0);
+    return lines;
+  }, []);
+
+  // Dispose Three.js objects when the component unmounts.
+  useEffect(() => {
+    return () => {
+      stemDashLines.geometry.dispose();
+      stemDashLines.material.dispose();
+    };
+  }, [stemDashLines]);
 
   // Emboss text geometry (optional) ─────────────────────────────────────────
   // TextGeometry is created synchronously using the module-level font singleton.
@@ -184,30 +209,21 @@ function KeycapTemplateNode({ node }) {
       </mesh>
 
       {/* Cherry MX stem hole indicator ─────────────────────────────────────
-          A dark cross slab centred at y = −STEM_INDICATOR_H/2 so its lower half
-          protrudes below the keycap bottom face (y = 0) and is clearly visible
-          when the user orbits to look from underneath. */}
+          Two dashed orange lines forming a cross in the XZ plane, positioned
+          just below the keycap bottom face (y = −0.1). Clearly visible when
+          the user orbits to inspect the keycap underside. */}
       {hasStem && (
-        <>
-          <mesh position={[0, -STEM_INDICATOR_H / 2, 0]}>
-            <boxGeometry args={[CHERRY_CROSS_SIZE, STEM_INDICATOR_H, CHERRY_CROSS_THICK]} />
-            <meshStandardMaterial color="#1a1a1a" roughness={1} metalness={0} />
-          </mesh>
-          <mesh position={[0, -STEM_INDICATOR_H / 2, 0]}>
-            <boxGeometry args={[CHERRY_CROSS_THICK, STEM_INDICATOR_H, CHERRY_CROSS_SIZE]} />
-            <meshStandardMaterial color="#1a1a1a" roughness={1} metalness={0} />
-          </mesh>
-        </>
+        <primitive object={stemDashLines} />
       )}
 
       {/* Emboss text preview ──────────────────────────────────────────────
           TextGeometry (XY plane, extruding +Z) is rotated -π/2 around X so it
           lies flat in the XZ plane extruding upward (+Y) from the keycap top.
-          A 0.05 mm clearance avoids z-fighting with the dish surface. */}
+          Positioned flush with the top surface (no clearance gap). */}
       {embossGeo && (
         <mesh
           geometry={embossGeo}
-          position={[0, resolvedHeight + 0.05, 0]}
+          position={[0, resolvedHeight, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           castShadow
         >
