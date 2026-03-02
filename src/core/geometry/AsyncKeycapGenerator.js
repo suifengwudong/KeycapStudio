@@ -16,7 +16,7 @@ export class AsyncKeycapGenerator {
    * 使用 generateInstantPreview 确保用户立即看到图形
    */
   async generatePreviewAsync(params) {
-    const cacheKey = 'preview-' + this._getCacheKey(params);
+    const cacheKey = 'preview-' + this._getPreviewCacheKey(params);
 
     if (this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey);
@@ -107,7 +107,7 @@ export class AsyncKeycapGenerator {
   }
 
   /**
-   * 生成缓存键
+   * 生成缓存键（全量生成用，包含 hasStem / wallThickness）
    */
   _getCacheKey(params) {
     const { profile, size, hasStem, topRadius, wallThickness } = params;
@@ -117,6 +117,18 @@ export class AsyncKeycapGenerator {
     const thickness = typeof wallThickness === 'number' ? wallThickness.toFixed(2) : wallThickness;
     
     return `${profile}-${size}-${hasStem}-${radius}-${thickness}`;
+  }
+
+  /**
+   * 生成预览缓存键（仅包含影响 generateInstantPreview 的参数）
+   * 排除 hasStem / wallThickness（不影响外壳外形）
+   */
+  _getPreviewCacheKey(params) {
+    const { profile = 'Cherry', size = '1u', topRadius = 0.5, dishDepth, height } = params;
+    const r = topRadius.toFixed(2);
+    const d = typeof dishDepth === 'number' ? dishDepth.toFixed(2) : 'default';
+    const h = typeof height    === 'number' ? height.toFixed(2)    : 'default';
+    return `${profile}-${size}-${r}-${d}-${h}`;
   }
 
   /**
