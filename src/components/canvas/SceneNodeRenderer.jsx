@@ -26,6 +26,18 @@ const _previewGen = new OptimizedKeycapGenerator();
 const _geoCache = new Map();
 const _GEO_CACHE_MAX = 20;
 
+// ─── Emboss outline sizing constants ─────────────────────────────────────────
+/** Approximate character width as a fraction of font size (em-units). */
+const CHAR_WIDTH_RATIO  = 0.55;
+/** Line height as a fraction of font size. */
+const LINE_HEIGHT_RATIO = 1.3;
+/** Minimum half-dimension (mm) for the dashed outline box. */
+const MIN_HALF_DIM      = 2;
+/** Maximum half-width (mm) for the dashed outline box. */
+const MAX_HALF_WIDTH    = 12;
+/** Maximum half-height (mm) for the dashed outline box. */
+const MAX_HALF_HEIGHT   = 10;
+
 /**
  * Return a cached THREE.BufferGeometry for the given preview params.
  * Creates a new one via generateInstantPreview when there is a cache miss.
@@ -179,8 +191,8 @@ function KeycapTemplateNode({ node }) {
     // Approximate text bounding box based on font size and character count.
     // Half-widths/heights in mm (XZ plane, Y is up).
     const charCount = Math.max(1, embossText.length);
-    const hw = Math.max(2, Math.min(embossFontSize * charCount * 0.55, 12)); // half-width
-    const hh = Math.max(2, Math.min(embossFontSize * 1.3, 10));              // half-height (Z)
+    const hw = Math.max(MIN_HALF_DIM, Math.min(embossFontSize * charCount * CHAR_WIDTH_RATIO,  MAX_HALF_WIDTH));
+    const hh = Math.max(MIN_HALF_DIM, Math.min(embossFontSize * LINE_HEIGHT_RATIO,              MAX_HALF_HEIGHT));
 
     // Rectangle corners in XZ plane (y stays 0; we position the primitive)
     const positions = new Float32Array([
