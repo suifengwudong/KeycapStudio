@@ -18,8 +18,10 @@ import { PROFILES, KEYCAP_SIZES } from '../../constants/profiles';
 import { CHERRY_DISH_DEPTH } from '../../constants/cherry';
 import Slider from '../common/Slider';
 import ColorPicker from '../common/ColorPicker';
+import { useT } from '../../store/langStore';
 
 export default function KeycapInspector({ node, onUpdate }) {
+  const t    = useT();
   const p    = node.params ?? {};
   const setP = (key, val) => onUpdate({ params: { ...p, [key]: val } });
 
@@ -32,7 +34,7 @@ export default function KeycapInspector({ node, onUpdate }) {
     <>
       {/* ── Profile ──────────────────────────────────────────────── */}
       <div>
-        <label className="block text-xs text-gray-400 mb-1">Profile</label>
+        <label className="block text-xs text-gray-400 mb-1">{t('profile')}</label>
         <select
           value={p.profile ?? 'Cherry'}
           onChange={e => setP('profile', e.target.value)}
@@ -46,7 +48,7 @@ export default function KeycapInspector({ node, onUpdate }) {
 
       {/* ── Size ─────────────────────────────────────────────────── */}
       <div>
-        <label className="block text-xs text-gray-400 mb-1">Size</label>
+        <label className="block text-xs text-gray-400 mb-1">{t('size')}</label>
         <select
           value={p.size ?? '1u'}
           onChange={e => setP('size', e.target.value)}
@@ -60,13 +62,13 @@ export default function KeycapInspector({ node, onUpdate }) {
 
       {/* ── Color ────────────────────────────────────────────────── */}
       <div>
-        <label className="block text-xs text-gray-400 mb-1">Color</label>
+        <label className="block text-xs text-gray-400 mb-1">{t('color')}</label>
         <ColorPicker value={p.color ?? '#c8dff0'} onChange={c => setP('color', c)} />
       </div>
 
       {/* ── Top Radius ───────────────────────────────────────────── */}
       <Slider
-        label="Top Radius (mm)"
+        label={t('topRadius')}
         min={0.1} max={3.0} step={0.1}
         value={p.topRadius ?? 0.5}
         onChange={v => setP('topRadius', v)}
@@ -75,7 +77,7 @@ export default function KeycapInspector({ node, onUpdate }) {
 
       {/* ── Wall Thickness ───────────────────────────────────────── */}
       <Slider
-        label="Wall Thickness (mm)"
+        label={t('wallThickness')}
         min={0.8} max={3.5} step={0.1}
         value={p.wallThickness ?? 1.5}
         onChange={v => setP('wallThickness', v)}
@@ -85,14 +87,14 @@ export default function KeycapInspector({ node, onUpdate }) {
       {/* ── Height override ──────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-400">Height (mm)</label>
+          <label className="text-xs text-gray-400">{t('height')}</label>
           {p.height != null && (
             <button
               className="text-xs text-blue-400 hover:text-blue-300 leading-none"
-              title="Reset to profile default"
+              title={t('heightAuto')}
               onClick={() => setP('height', null)}
             >
-              Auto
+              {t('heightAuto')}
             </button>
           )}
         </div>
@@ -108,14 +110,14 @@ export default function KeycapInspector({ node, onUpdate }) {
         />
         {p.height == null && (
           <div className="text-xs text-gray-600 mt-0.5">
-            Auto ({profileData.baseHeight} mm from profile)
+            {t('heightAutoNote').replace('{h}', profileData.baseHeight)}
           </div>
         )}
       </div>
 
       {/* ── Dish Depth ───────────────────────────────────────────── */}
       <Slider
-        label="Dish Depth (mm)"
+        label={t('dishDepth')}
         min={0} max={3.0} step={0.1}
         value={resolvedDish}
         onChange={v => setP('dishDepth', v)}
@@ -132,14 +134,14 @@ export default function KeycapInspector({ node, onUpdate }) {
           className="accent-blue-500"
         />
         <label htmlFor={`ks-hasStem-${node.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`} className="text-xs text-gray-300 cursor-pointer">
-          Cherry MX stem hole
+          {t('stemHole')}
         </label>
       </div>
 
       {/* ── Text Emboss (字的浮雕) ────────────────────────────────── */}
       <div className="border-t border-gray-700 pt-3 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">浮雕文字</span>
+          <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">{t('embossTitle')}</span>
           <label className="flex items-center gap-1.5 cursor-pointer">
             <input
               type="checkbox"
@@ -147,26 +149,26 @@ export default function KeycapInspector({ node, onUpdate }) {
               onChange={e => setP('embossEnabled', e.target.checked)}
               className="accent-blue-500"
             />
-            <span className="text-xs text-gray-300">启用</span>
+            <span className="text-xs text-gray-300">{t('embossEnable')}</span>
           </label>
         </div>
 
         {p.embossEnabled && (
           <>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">文字内容</label>
+              <label className="block text-xs text-gray-400 mb-1">{t('embossTextLabel')}</label>
               <input
                 type="text"
                 maxLength={6}
                 value={p.embossText ?? ''}
                 onChange={e => setP('embossText', e.target.value)}
-                placeholder="例：A  Esc  ↵"
+                placeholder={t('embossTextPlaceholder')}
                 className="w-full bg-gray-900 text-white text-xs px-2 py-1.5 rounded border border-gray-700 focus:border-blue-500 focus:outline-none"
               />
             </div>
 
             <Slider
-              label="字体大小 (mm)"
+              label={t('embossFontSize')}
               min={2} max={10} step={0.5}
               value={p.embossFontSize ?? 5}
               onChange={v => setP('embossFontSize', v)}
@@ -174,26 +176,26 @@ export default function KeycapInspector({ node, onUpdate }) {
             />
 
             <Slider
-              label="浮雕深度 (mm)"
+              label={t('embossDepth')}
               min={0.1} max={2.0} step={0.1}
-              value={p.embossDepth ?? 0.4}
+              value={p.embossDepth ?? 1.0}
               onChange={v => setP('embossDepth', v)}
               unit="mm"
             />
 
             {/* Emboss text color */}
             <div>
-              <label className="block text-xs text-gray-400 mb-1">浮雕颜色</label>
+              <label className="block text-xs text-gray-400 mb-1">{t('embossColor')}</label>
               <ColorPicker value={p.embossColor ?? '#222222'} onChange={c => setP('embossColor', c)} />
             </div>
 
             {/* Recommended parameter hints */}
             <div className="bg-gray-900/60 rounded p-2 text-xs text-gray-500 space-y-0.5">
-              <div className="text-gray-400 font-medium mb-1">推荐参数</div>
-              <div>• FDM 打印：深度 0.3–0.6 mm</div>
-              <div>• 视觉效果：深度 0.5–1.0 mm</div>
-              <div>• 1u 键帽字体：4–6 mm</div>
-              <div className="text-green-600 mt-1">✓ 浮雕在 3D 预览和 STL 导出中均可显示</div>
+              <div className="text-gray-400 font-medium mb-1">{t('embossHintTitle')}</div>
+              <div>{t('embossHintFDM')}</div>
+              <div>{t('embossHintVisual')}</div>
+              <div>{t('embossHintFont')}</div>
+              <div className="text-green-600 mt-1">{t('embossHintVisible')}</div>
             </div>
           </>
         )}

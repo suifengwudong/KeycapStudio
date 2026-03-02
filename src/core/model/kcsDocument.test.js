@@ -298,7 +298,7 @@ describe('defaultShape3d', () => {
     const a = defaultShape3d();
     const b = defaultShape3d();
     a.params.color = '#mutated';
-    expect(b.params.color).toBe('#ffffff');
+    expect(b.params.color).toBe('#c8dff0');
   });
 });
 

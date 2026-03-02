@@ -8,10 +8,10 @@ import { useAssetStore, readKcsAutosave } from './store/assetStore';
 import { useProjectStore } from './store/projectStore';
 import { startKcsAutosave, stopKcsAutosave } from './core/io/kcsIO';
 import { useExportController } from './hooks/useExportController';
+import { useT } from './store/langStore';
 
 // ── Lazy-load the 3D components so three.js is only fetched when needed ───────
 const Scene3D       = lazy(() => import('./components/canvas/Scene3D'));
-const Outliner      = lazy(() => import('./components/panels/Outliner'));
 const NodeInspector = lazy(() => import('./components/panels/NodeInspector'));
 
 function ThreeDFallback() {
@@ -23,6 +23,7 @@ function ThreeDFallback() {
 }
 
 export default function App() {
+  const t = useT();
   const [mode, setMode] = useState('3d'); // start in Shape (3D) – step 1 of the flow
   const [presetsOpen, setPresetsOpen] = useState(false);
   const loadAsset         = useAssetStore(s => s.loadAsset);
@@ -34,9 +35,7 @@ export default function App() {
   useEffect(() => {
     const saved = readKcsAutosave();
     if (saved) {
-      const restore = window.confirm(
-        'An unsaved project was found. Restore it?'
-      );
+      const restore = window.confirm(t('confirmRestore'));
       if (restore) {
         loadAsset(saved, { resetDirty: true });
         // Restore UI context (mode + selected legend)
@@ -97,12 +96,7 @@ export default function App() {
           </>
         ) : (
           <>
-            {/* 3D mode: Outliner | viewport | NodeInspector */}
-            <aside className="w-48 bg-gray-800 border-r border-gray-700 overflow-hidden flex flex-col">
-              <Suspense fallback={<ThreeDFallback />}>
-                <Outliner />
-              </Suspense>
-            </aside>
+            {/* 3D mode: viewport | right inspector (no Outliner) */}
             <main className="flex-1 relative">
               <Suspense fallback={<ThreeDFallback />}>
                 <Scene3D />
@@ -110,7 +104,7 @@ export default function App() {
             </main>
             <aside className="w-72 bg-gray-800 border-l border-gray-700 overflow-y-auto">
               <div className="p-3 border-b border-gray-700">
-                <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">Inspector</h2>
+                <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wide">{t('inspector')}</h2>
               </div>
               <Suspense fallback={null}>
                 <NodeInspector />
