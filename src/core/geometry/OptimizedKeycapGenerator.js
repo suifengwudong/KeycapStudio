@@ -599,3 +599,6 @@ export class OptimizedKeycapGenerator {
     }
   }
 }
+
+/** Return the module-level singleton parsed font (used by the preview renderer). */
+export function getKeycapFont() { return _getFont(); }

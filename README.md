@@ -319,6 +319,20 @@ examples/
 
 ---
 
+## Pain Points & Roadmap
+
+The following known limitations shape the upcoming milestone plan:
+
+| # | Pain Point | Status |
+|---|-----------|--------|
+| 1 | **Preview ≠ Export** — stem hole and emboss text are invisible in the 3D preview (CSG only runs at export). | ✅ Fixed in v1.4 |
+| 2 | **Single-key focus** — the app designs and previews one key at a time. There is no view showing all keys in a real keyboard layout together. | Planned v2.0 |
+| 3 | **Legend UI confusion** — "Step 2: Legends" edits the *printed label* on a single keycap (4 text slots: Main / Top-Left / Bottom-Right / Left). It is **not** a full keyboard layout tool. | Planned v2.0 |
+| 4 | **Emboss font locked** — only Helvetiker Bold is available for 3D emboss text. | Planned v2.2 |
+| 5 | **No cross-section or wireframe view** — impossible to inspect inner geometry (wall thickness, stem post) in the 3D preview without exporting. | Planned v2.3 |
+
+---
+
 ## Milestones
 
 - [x] **v0.1** Basic geometry (Cherry 1u, stem hole)
@@ -329,4 +343,9 @@ examples/
 - [x] **v1.1** 3D modeling: node-based CSG tree, Outliner, Inspector, STL export
 - [x] **v1.2** Unified `.kcs.json` project format: single file embeds `shape3d` + `legend2d`
 - [x] **v1.3** Performance: bundle splitting, lazy 3D loading, off-thread STL export worker, unified step navigation
+- [x] **v1.4** Preview fidelity: immediate geometry on first frame (no async placeholder); stem hole cross indicator visible in 3D viewport; emboss text rendered as a 3D overlay in preview
+- [ ] **v2.0** Keyboard layout view: place multiple keycap nodes in a standard keyboard arrangement and preview the full layout in 3D
+- [ ] **v2.1** Full keyboard export: batch-generate and download the complete layout as individual STL + PNG files
+- [ ] **v2.2** Font management: upload custom TTF/OTF for emboss text; live font preview in the 3D viewport
+- [ ] **v2.3** Section / wireframe view: inspect inner geometry (wall thickness, stem post) without needing an STL export
 

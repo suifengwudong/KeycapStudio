@@ -107,8 +107,7 @@ function _evalKeycap(node, mode) {
       geometry = generated.geometry;
     }
   } else {
-    _generator.setPerformanceMode('balanced');
-    geometry = _generator.generatePreview(p).geometry;
+    geometry = _generator.generateInstantPreview(p).geometry;
   }
 
   const material = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.08 });

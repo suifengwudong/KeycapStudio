@@ -16,6 +16,7 @@ import * as THREE from 'three';
 // Track calls so we can assert cache hit/miss behaviour.
 const generateSpy = vi.fn();
 const generatePreviewSpy = vi.fn();
+const generateInstantPreviewSpy = vi.fn();
 
 vi.mock('./OptimizedKeycapGenerator', () => ({
   OptimizedKeycapGenerator: class {
@@ -30,6 +31,14 @@ vi.mock('./OptimizedKeycapGenerator', () => ({
     }
     generatePreview(params) {
       generatePreviewSpy(params);
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(18, 11.5, 18),
+        new THREE.MeshStandardMaterial(),
+      );
+      return mesh;
+    }
+    generateInstantPreview(params) {
+      generateInstantPreviewSpy(params);
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(18, 11.5, 18),
         new THREE.MeshStandardMaterial(),
@@ -55,6 +64,7 @@ beforeEach(() => {
   clearGeometryCache();
   generateSpy.mockClear();
   generatePreviewSpy.mockClear();
+  generateInstantPreviewSpy.mockClear();
 });
 
 // ─── evalNode dispatch ────────────────────────────────────────────────────────
@@ -107,9 +117,9 @@ describe('evalNode – Keycap nodes (preview mode)', () => {
     expect(evalNode(node, 'preview')).toBeInstanceOf(THREE.Mesh);
   });
 
-  it('calls generatePreview (not generate) in preview mode', () => {
+  it('calls generateInstantPreview (not generate) in preview mode', () => {
     evalNode(createKeycapNode(), 'preview');
-    expect(generatePreviewSpy).toHaveBeenCalledTimes(1);
+    expect(generateInstantPreviewSpy).toHaveBeenCalledTimes(1);
     expect(generateSpy).not.toHaveBeenCalled();
   });
 
