@@ -244,7 +244,7 @@ export default function KeycapInspector({ node, onUpdate }) {
             <input
               type="number"
               min={-0.5} max={0.5} step={0.01}
-              value={Number((mainLegend?.x ?? 0).toFixed(3))}
+              value={parseFloat((mainLegend?.x ?? 0).toFixed(3))}
               onChange={e => setLeg('x', parseFloat(e.target.value) || 0)}
               className="w-full bg-gray-900 text-white text-xs px-2 py-1.5 rounded border border-gray-700 focus:border-blue-500 focus:outline-none"
             />
@@ -254,7 +254,7 @@ export default function KeycapInspector({ node, onUpdate }) {
             <input
               type="number"
               min={-0.5} max={0.5} step={0.01}
-              value={Number((mainLegend?.y ?? 0).toFixed(3))}
+              value={parseFloat((mainLegend?.y ?? 0).toFixed(3))}
               onChange={e => setLeg('y', parseFloat(e.target.value) || 0)}
               className="w-full bg-gray-900 text-white text-xs px-2 py-1.5 rounded border border-gray-700 focus:border-blue-500 focus:outline-none"
             />
