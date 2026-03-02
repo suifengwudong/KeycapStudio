@@ -22,9 +22,11 @@ import {
   readAutosave,
   startAutosave,
 } from '../core/io/projectIO.js';
-import { clone } from '../core/utils.js';
 
 const MAX_HISTORY = 100;
+
+/** Deep-clone via JSON round-trip (sufficient for plain-data project objects). */
+function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
 export const useProjectStore = create((set, get) => ({
   // ── Current project ──────────────────────────────────────────────────────
