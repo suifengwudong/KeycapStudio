@@ -8,7 +8,7 @@ export const useKeycapStore = create(
       params: {
         profile: 'Cherry',
         size: '1u',
-        color: '#ffffff',
+        color: '#cccccc',
         text: 'A',
         fontSize: 14,
         textDepth: 0.5,
@@ -37,7 +37,7 @@ export const useKeycapStore = create(
       defaultParams: {
         profile: 'Cherry',
         size: '1u',
-        color: '#ffffff',
+        color: '#cccccc',
         // ...
       },
 

@@ -87,7 +87,7 @@ describe('createKeycapNode', () => {
     expect(n.params.profile).toBe('Cherry');
     expect(n.params.size).toBe('1u');
     expect(n.params.hasStem).toBe(true);
-    expect(n.params.color).toBe('#ffffff');
+    expect(n.params.color).toBe('#cccccc');
   });
 
   it('accepts param overrides', () => {

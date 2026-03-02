@@ -79,7 +79,7 @@ export function createKeycapNode(overrides = {}) {
     params   : {
       profile       : 'Cherry',
       size          : '1u',
-      color         : '#ffffff',
+      color         : '#cccccc',
       hasStem       : true,
       topRadius     : 0.5,
       wallThickness : 1.5,

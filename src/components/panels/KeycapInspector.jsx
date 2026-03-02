@@ -61,7 +61,7 @@ export default function KeycapInspector({ node, onUpdate }) {
       {/* ── Color ────────────────────────────────────────────────── */}
       <div>
         <label className="block text-xs text-gray-400 mb-1">Color</label>
-        <ColorPicker value={p.color ?? '#ffffff'} onChange={c => setP('color', c)} />
+        <ColorPicker value={p.color ?? '#cccccc'} onChange={c => setP('color', c)} />
       </div>
 
       {/* ── Top Radius ───────────────────────────────────────────── */}
