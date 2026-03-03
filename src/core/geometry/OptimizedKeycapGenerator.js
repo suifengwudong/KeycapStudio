@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CSG } from 'three-csg-ts';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import helvetikerBoldData from 'three/examples/fonts/helvetiker_bold.typeface.json';
@@ -80,8 +81,21 @@ export class OptimizedKeycapGenerator {
       dishDepth
     );
 
+    // The ExtrudeGeometry top cap has only perimeter vertices; after uniform
+    // sag they all end up at the same Y and the top looks flat.  Merge in a
+    // subdivided PlaneGeometry cap whose interior vertices stay near y=height
+    // while the edges sag to y=height−dishDepth, making the bowl visible.
+    const capGeo   = this._buildTopCapGeometry(CHERRY_TOP_WIDTH, CHERRY_TOP_DEPTH, height, dishDepth);
+    const mergedGeo = mergeGeometries([geometry, capGeo]);
+    geometry.dispose();
+    capGeo.dispose();
+    if (!mergedGeo) {
+      console.warn('mergeGeometries failed for instant preview; top cap will be missing');
+    }
+    const finalGeo = mergedGeo ?? new THREE.BufferGeometry();
+
     // 使用内置法线计算替代昂贵的 _smoothNormals
-    geometry.computeVertexNormals();
+    finalGeo.computeVertexNormals();
 
     const material = new THREE.MeshStandardMaterial({
       color: 0xffffff,
@@ -92,7 +106,7 @@ export class OptimizedKeycapGenerator {
       flatShading: false,
     });
 
-    const mesh = new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(finalGeo, material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
@@ -215,11 +229,11 @@ export class OptimizedKeycapGenerator {
     };
 
     // 5. 生成基础几何体
-    const geometry = new THREE.ExtrudeGeometry(bottomShape, extrudeSettings);
+    const bodyGeo = new THREE.ExtrudeGeometry(bottomShape, extrudeSettings);
 
     // 6. 应用键帽变形（梯形 + 内凹）
     this._applyKeycapDeformation(
-      geometry, 
+      bodyGeo, 
       bottomWidth, 
       bottomDepth, 
       height, 
@@ -227,6 +241,19 @@ export class OptimizedKeycapGenerator {
       CHERRY_TOP_DEPTH,
       dishDepth
     );
+
+    // Merge subdivided top cap so the dish curvature is visible.
+    // ExtrudeGeometry's top cap has only perimeter vertices, which after
+    // uniform sag produce a flat-looking surface.  The PlaneGeometry cap
+    // has interior vertices that form a proper bowl.
+    const capGeo  = this._buildTopCapGeometry(CHERRY_TOP_WIDTH, CHERRY_TOP_DEPTH, height, dishDepth);
+    const merged  = mergeGeometries([bodyGeo, capGeo]);
+    bodyGeo.dispose();
+    capGeo.dispose();
+    if (!merged) {
+      console.warn('mergeGeometries failed for high-quality mesh; top cap will be missing');
+    }
+    const geometry = merged ?? new THREE.BufferGeometry();
 
     // 7. 平滑法线（关键步骤！）
     this._smoothNormals(geometry, CHERRY_SMOOTH_ANGLE);
@@ -312,6 +339,51 @@ export class OptimizedKeycapGenerator {
     shape.absarc(w - r, -h + r, r, 0, -Math.PI * 0.5, true);
 
     return shape;
+  }
+
+  /**
+   * Build a subdivided top-cap geometry with the dish deformation applied.
+   *
+   * ExtrudeGeometry triangulates its top cap using only perimeter vertices,
+   * so after dish deformation every vertex sags by a similar amount and the
+   * top face looks flat.  This method creates a PlaneGeometry grid (with
+   * interior vertices) in the XZ plane at y=height and applies the same
+   * parabolic sag formula used in _applyKeycapDeformation so the top face
+   * shows the correct bowl profile.
+   *
+   * After rotateX(-π/2):
+   *   - plane normals (0,0,1) → (0,1,0)  ✓ points upward
+   *   - vertex (x, y, 0)     → (x, 0, -y) — flat in XZ at y=0
+   *
+   * @param {number} topWidth
+   * @param {number} topDepth
+   * @param {number} height   – cap is placed at this Y value
+   * @param {number} dishDepth
+   * @returns {THREE.BufferGeometry}
+   */
+  _buildTopCapGeometry(topWidth, topDepth, height, dishDepth) {
+    const segs = this.performanceMode === 'quality' ? 16
+               : this.performanceMode === 'fast'    ?  8
+               :                                      12;
+
+    // Lay the plane flat in XZ with normals pointing +Y.
+    const geo = new THREE.PlaneGeometry(topWidth, topDepth, segs, segs);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(0, height, 0);
+
+    const pos    = geo.attributes.position;
+    const maxDim = Math.max(topWidth, topDepth) / 2;
+
+    for (let i = 0; i < pos.count; i++) {
+      const x   = pos.getX(i);
+      const z   = pos.getZ(i);
+      const nd  = Math.min(Math.sqrt(x * x + z * z) / maxDim, 1.0);
+      const sag = Math.pow(nd, CHERRY_DISH_EXPONENT) * dishDepth;
+      pos.setY(i, height - sag);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
   }
 
   /**
