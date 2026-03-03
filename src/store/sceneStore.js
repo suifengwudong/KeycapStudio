@@ -8,6 +8,8 @@ import {
   patchNodeById,
   addChildById,
   removeNodeById,
+  collectNodes,
+  NODE_TYPES,
 } from '../core/model/sceneDocument';
 
 export const useSceneStore = create((set, get) => ({
@@ -69,6 +71,32 @@ export const useSceneStore = create((set, get) => ({
     }),
 
   // ─── Convenience add helpers ──────────────────────────────────────────────
+
+  /**
+   * Reset the scene to a fresh default (one 1u Cherry keycap).
+   * Called by assetStore.newAsset() to keep 3D view in sync.
+   */
+  resetScene: () => set({ scene: createDefaultScene(), selectedId: null }),
+
+  /**
+   * Patch the first KeycapTemplate node's params with the given shape3d params.
+   * Called by assetStore.loadAsset() so the 3D view reflects the loaded preset.
+   * @param {object} params – shape3d.params from the loaded KCS document
+   */
+  syncKeycapParams: (params) =>
+    set(s => {
+      const all = collectNodes(s.scene.root);
+      const keycap = all.find(n => n.type === NODE_TYPES.KEYCAP);
+      if (!keycap) return s;
+      return {
+        scene: {
+          ...s.scene,
+          root: patchNodeById(s.scene.root, keycap.id, {
+            params: { ...keycap.params, ...params },
+          }),
+        },
+      };
+    }),
 
   addBox: (parentId) => {
     const n = createPrimitive('box');
