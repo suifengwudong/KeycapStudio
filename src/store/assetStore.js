@@ -6,7 +6,7 @@
  * they always reflect the same underlying asset.
  *
  * Lifecycle:
- *   loadAsset(doc)          → pushes shape3d.params → keycapStore
+ *   loadAsset(doc)          → pushes shape3d.params → keycapStore + sceneStore
  *                              pushes legend2d       → projectStore
  *   updateShape3dParams(p)  → updates asset + keycapStore + auto-syncs 2D preset
  *   updateLegend2d(kc, lg)  → updates asset + projectStore
@@ -24,6 +24,7 @@ import {
 } from '../core/io/kcsIO.js';
 import { useProjectStore } from './projectStore.js';
 import { useKeycapStore } from './keycapStore.js';
+import { useSceneStore } from './sceneStore.js';
 
 /** Deep-clone via JSON (safe for plain-data assets). */
 function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
@@ -55,8 +56,9 @@ export const useAssetStore = create((set, get) => ({
       legends: { ...fresh.legend2d.legends },
     };
     useProjectStore.getState().setProject(projectMod, { resetHistory: resetDirty });
-    // Push shape3d.params → keycapStore
+    // Push shape3d.params → keycapStore + sceneStore
     useKeycapStore.getState().updateParams(fresh.shape3d.params);
+    useSceneStore.getState().syncKeycapParams(fresh.shape3d.params);
   },
 
   /** Create a fresh default asset and reset both sub-stores. */
@@ -65,6 +67,7 @@ export const useAssetStore = create((set, get) => ({
     set({ asset: doc, isDirty: false });
     useProjectStore.getState().newProject();
     useKeycapStore.getState().resetParams();
+    useSceneStore.getState().resetScene();
   },
 
   // ── Shape 3D params ───────────────────────────────────────────────────────

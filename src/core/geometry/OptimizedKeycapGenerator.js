@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CSG } from 'three-csg-ts';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import helvetikerBoldData from 'three/examples/fonts/helvetiker_bold.typeface.json';
@@ -12,8 +13,9 @@ import {
   CHERRY_CROSS_THICK,
   CHERRY_STEM_DEPTH,
   CHERRY_SMOOTH_ANGLE,
+  CHERRY_DISH_EXPONENT,
+  computeTopDimensions,
 } from '../../constants/cherry';
-
 /** Recommended emboss parameter bounds (kept in sync with KeycapInspector sliders). */
 const EMBOSS_FONT_SIZE_MIN  = 2;
 const EMBOSS_FONT_SIZE_MAX  = 10;
@@ -49,12 +51,16 @@ export class OptimizedKeycapGenerator {
    * 适合首次渲染展示，让用户立即看到图形
    */
   generateInstantPreview(params) {
-    const { topRadius, dishDepth, height, bottomWidth, bottomDepth } = this._resolveParams(params);
+    const { topRadius, dishDepth, height, bottomWidth, bottomDepth, topWidth, topDepth } = this._resolveParams(params);
 
     // 固定最少分段数，不动态计算
+    // NOTE: ExtrudeGeometry with a Y-axis extrudePath maps shape.x → world Z and
+    // shape.y → world X (Frenet frame: N=(0,0,−1), B=(−1,0,0)).  Pass depth as the
+    // first argument (→ world Z) and width as the second (→ world X) so the body is
+    // correctly oriented: world X = key width, world Z = key depth.
     const bottomShape = this._createRoundedRectShape(
-      bottomWidth / 2,
       bottomDepth / 2,
+      bottomWidth / 2,
       topRadius,
       8
     );
@@ -75,13 +81,26 @@ export class OptimizedKeycapGenerator {
       bottomWidth,
       bottomDepth,
       height,
-      CHERRY_TOP_WIDTH,
-      CHERRY_TOP_DEPTH,
+      topWidth,
+      topDepth,
       dishDepth
     );
 
+    // The ExtrudeGeometry top cap has only perimeter vertices; after uniform
+    // sag they all end up at the same Y and the top looks flat.  Merge in a
+    // subdivided PlaneGeometry cap whose interior vertices stay near y=height
+    // while the edges sag to y=height−dishDepth, making the bowl visible.
+    const capGeo   = this._buildTopCapGeometry(topWidth, topDepth, height, dishDepth);
+    const mergedGeo = mergeGeometries([geometry, capGeo]);
+    geometry.dispose();
+    capGeo.dispose();
+    if (!mergedGeo) {
+      console.warn('mergeGeometries failed for instant preview; top cap will be missing');
+    }
+    const finalGeo = mergedGeo ?? new THREE.BufferGeometry();
+
     // 使用内置法线计算替代昂贵的 _smoothNormals
-    geometry.computeVertexNormals();
+    finalGeo.computeVertexNormals();
 
     const material = new THREE.MeshStandardMaterial({
       color: 0xffffff,
@@ -92,7 +111,7 @@ export class OptimizedKeycapGenerator {
       flatShading: false,
     });
 
-    const mesh = new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(finalGeo, material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
@@ -176,6 +195,11 @@ export class OptimizedKeycapGenerator {
     const sizeData     = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
     const height       = params.height || profileData.baseHeight;
 
+    // Top face scales proportionally with the key size using the Cherry taper ratio.
+    // For standard keys (depth=18): topDepth = 12.7 mm always; only topWidth grows.
+    // For ISO-Enter (depth=27): both dimensions scale.
+    const { topWidth, topDepth } = computeTopDimensions(sizeData.width, sizeData.depth);
+
     return {
       topRadius,
       dishDepth,
@@ -183,6 +207,8 @@ export class OptimizedKeycapGenerator {
       height,
       bottomWidth : sizeData.width,
       bottomDepth : sizeData.depth,
+      topWidth,
+      topDepth,
     };
   }
 
@@ -190,13 +216,17 @@ export class OptimizedKeycapGenerator {
    * 创建高质量键帽网格
    */
   _createHighQualityMesh(bottomWidth, bottomDepth, height, profileData, topRadius, dishDepth = CHERRY_DISH_DEPTH) {
+    // Compute correct top-face dimensions for this key size.
+    const { topWidth, topDepth } = computeTopDimensions(bottomWidth, bottomDepth);
+
     // 1. 动态计算最优分段数
     const curveSegments = this._calculateOptimalSegments(bottomWidth, bottomDepth);
     
     // 2. 创建底部轮廓（圆角矩形）
+    // See generateInstantPreview for the axis mapping explanation.
     const bottomShape = this._createRoundedRectShape(
-      bottomWidth / 2, 
-      bottomDepth / 2, 
+      bottomDepth / 2,
+      bottomWidth / 2,
       topRadius,
       curveSegments
     );
@@ -215,18 +245,28 @@ export class OptimizedKeycapGenerator {
     };
 
     // 5. 生成基础几何体
-    const geometry = new THREE.ExtrudeGeometry(bottomShape, extrudeSettings);
+    const bodyGeo = new THREE.ExtrudeGeometry(bottomShape, extrudeSettings);
 
     // 6. 应用键帽变形（梯形 + 内凹）
     this._applyKeycapDeformation(
-      geometry, 
+      bodyGeo, 
       bottomWidth, 
       bottomDepth, 
       height, 
-      CHERRY_TOP_WIDTH,
-      CHERRY_TOP_DEPTH,
+      topWidth,
+      topDepth,
       dishDepth
     );
+
+    // Merge subdivided top cap so the dish curvature is visible.
+    const capGeo  = this._buildTopCapGeometry(topWidth, topDepth, height, dishDepth);
+    const merged  = mergeGeometries([bodyGeo, capGeo]);
+    bodyGeo.dispose();
+    capGeo.dispose();
+    if (!merged) {
+      console.warn('mergeGeometries failed for high-quality mesh; top cap will be missing');
+    }
+    const geometry = merged ?? new THREE.BufferGeometry();
 
     // 7. 平滑法线（关键步骤！）
     this._smoothNormals(geometry, CHERRY_SMOOTH_ANGLE);
@@ -315,7 +355,54 @@ export class OptimizedKeycapGenerator {
   }
 
   /**
-   * 应用键帽变形
+   * Build a subdivided top-cap geometry with the cylindrical dish deformation applied.
+   *
+   * Cherry profile uses a cylindrical dish (front-to-back, Z axis only).
+   * ExtrudeGeometry's top cap has only perimeter vertices, which after sag produce a
+   * flat-looking surface.  This PlaneGeometry grid has interior vertices so the bowl
+   * profile is correctly visible.
+   *
+   * The PlaneGeometry is converted to non-indexed to match the ExtrudeGeometry body
+   * (required by mergeGeometries).
+   *
+   * @param {number} topWidth   – top face width (mm, scales with key size)
+   * @param {number} topDepth   – top face depth (mm, scales with key depth)
+   * @param {number} height     – cap is placed at this Y value
+   * @param {number} dishDepth  – cylindrical dish depth (mm)
+   * @returns {THREE.BufferGeometry}  non-indexed geometry
+   */
+  _buildTopCapGeometry(topWidth, topDepth, height, dishDepth) {
+    const segs = this.performanceMode === 'quality' ? 16
+               : this.performanceMode === 'fast'    ?  8
+               :                                      12;
+
+    // Lay the plane flat in XZ with normals pointing +Y.
+    const indexed = new THREE.PlaneGeometry(topWidth, topDepth, segs, segs);
+    indexed.rotateX(-Math.PI / 2);
+    indexed.translate(0, height, 0);
+
+    // Convert to non-indexed to match the non-indexed ExtrudeGeometry body.
+    // mergeGeometries() requires a uniform indexing scheme across all inputs.
+    const geo = indexed.toNonIndexed();
+    indexed.dispose();
+
+    const pos       = geo.attributes.position;
+    const halfDepth = topDepth / 2;
+
+    // Cylindrical dish: curvature in Z only (front-to-back).
+    // The X (left-right) direction is flat – correct for Cherry profile.
+    for (let i = 0; i < pos.count; i++) {
+      const z  = pos.getZ(i);
+      const nz = Math.min(Math.abs(z) / halfDepth, 1.0);
+      pos.setY(i, height - Math.pow(nz, CHERRY_DISH_EXPONENT) * dishDepth);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;  // already non-indexed
+  }
+
+  /**
+   * 应用键帽变形：梯形缩放（底宽到顶宽）+ 顶部柱面内凹（Cherry 标准）
    */
   _applyKeycapDeformation(geometry, bottomWidth, bottomDepth, height, topWidth, topDepth, dishDepth) {
     const pos = geometry.attributes.position;
@@ -337,15 +424,14 @@ export class OptimizedKeycapGenerator {
       let newZ = z * scaleZ;
       let newY = y;
 
-      // 顶部内凹（球面）
+      // 顶部内凹（柱面，仅 Z 方向，符合 Cherry MX 标准）
+      // Wide keys like the spacebar stay flat left-right; only the front-back
+      // direction curves.
       if (normalizedY > 0.8) {
-        const topFactor = (normalizedY - 0.8) / 0.2; // 0~1
-        const distXZ = Math.sqrt(newX * newX + newZ * newZ);
-        const maxDim = Math.max(topWidth, topDepth) / 2;
-        const normalizedDist = Math.min(distXZ / maxDim, 1.0);
-        
-        // 使用抛物线内凹
-        const sag = Math.pow(normalizedDist, 2.2) * dishDepth * topFactor;
+        const topFactor  = (normalizedY - 0.8) / 0.2; // 0→1
+        const halfTopDepth = topDepth / 2;
+        const nz = Math.min(Math.abs(newZ) / halfTopDepth, 1.0);
+        const sag = Math.pow(nz, CHERRY_DISH_EXPONENT) * dishDepth * topFactor;
         newY -= sag;
       }
 
@@ -375,7 +461,9 @@ export class OptimizedKeycapGenerator {
     const indices = geometry.index;
 
     if (!indices) {
-      console.warn('Geometry is not indexed, skipping smooth normals');
+      // Non-indexed geometry (e.g. after mergeGeometries on non-indexed inputs):
+      // recompute normals rather than leaving them stale from pre-deformation.
+      geometry.computeVertexNormals();
       return;
     }
 
@@ -566,15 +654,27 @@ export class OptimizedKeycapGenerator {
         bevelEnabled  : false,
       });
 
-      // Center text in X/Z and place its bottom face at the keycap top surface.
+      // Center text in the character plane (X = horizontal, Y = character height).
       textGeo.computeBoundingBox();
-      const bb     = textGeo.boundingBox;
-      const cx     = (bb.max.x + bb.min.x) / 2;
-      const cz     = (bb.max.z + bb.min.z) / 2;
-      // y: place emboss so its base is just below the keycap top (for solid overlap)
-      textGeo.translate(-cx, keycapHeight - depth * 0.5, -cz);
+      const bb = textGeo.boundingBox;
+      textGeo.translate(
+        -(bb.max.x + bb.min.x) / 2,
+        -(bb.max.y + bb.min.y) / 2,
+        0,
+      );
 
       const textMesh = new THREE.Mesh(textGeo, mesh.material);
+
+      // Rotate to lay flat on the keycap top surface.
+      // TextGeometry is in the XY plane, extruding in +Z.
+      // After -90° rotation around X: face (Z=0) lies flat in the XZ plane;
+      // the extrusion direction (+Z) maps to +Y, so text rises above the surface.
+      textMesh.rotation.x = -Math.PI / 2;
+
+      // Place the text base at the keycap top surface centre.
+      // A small downward overlap (depth × 0.1) ensures a clean CSG union.
+      textMesh.position.y = keycapHeight - depth * 0.1;
+
       textMesh.updateMatrix();
       mesh.updateMatrix();
 
