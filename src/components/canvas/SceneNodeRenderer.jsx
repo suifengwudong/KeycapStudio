@@ -133,6 +133,7 @@ function KeycapTemplateNode({ node }) {
   // Draws the ACTUAL cross outline shape (12-corner polygon with real arm
   // thickness = CHERRY_CROSS_THICK) using depthTest:false so it is ALWAYS
   // visible regardless of camera angle.
+  // Placed at y=0 (the keycap bottom face) — 原位, where the hole physically is.
   const stemCrossLine = useMemo(() => {
     const chs = CHERRY_CROSS_SIZE  / 2;  // arm half-length
     const cht = CHERRY_CROSS_THICK / 2;  // arm half-thickness
@@ -181,14 +182,47 @@ function KeycapTemplateNode({ node }) {
     };
   }, [stemCrossLine]);
 
-  // Emboss text dashed-outline indicator ─────────────────────────────────────
-  // Uses TextGeometry + EdgesGeometry to draw the ACTUAL extruded-text silhouette
-  // as dashed lines.  depthTest:false ensures visibility regardless of occlusion.
+  // Emboss text indicators ────────────────────────────────────────────────────
+  // Two complementary visuals, both positioned at the keycap top surface (原位):
+  //
+  //  1. Solid preview mesh  – TextGeometry rendered as a plain mesh coloured with
+  //     embossColor.  No CSG needed; placed directly on the top face.  This is the
+  //     low-cost "挖去的方法" that gives actual 3-D depth in the preview.
+  //
+  //  2. Dashed outline      – EdgesGeometry of the same text rendered as dashed
+  //     LineSegments with depthTest:false so the outline is ALWAYS visible from
+  //     any camera angle, even when the solid mesh is hidden by the keycap body.
   const embossEnabled  = p.embossEnabled ?? false;
   const embossText     = (p.embossText ?? '').trim();
   const embossFontSize = p.embossFontSize ?? 5;
   const embossDepth    = p.embossDepth ?? 1.0;
   const embossColor    = p.embossColor ?? '#222222';
+
+  // Solid emboss preview mesh (low-cost: no CSG, just TextGeometry mesh).
+  const embossSolidGeo = useMemo(() => {
+    if (!embossEnabled || !embossText) return null;
+    try {
+      const font = getKeycapFont();
+      if (!font) return null;
+      const textGeo = new TextGeometry(embossText, {
+        font,
+        size         : Math.max(2, Math.min(10, embossFontSize)),
+        height       : Math.max(0.1, Math.min(2.0, embossDepth)),
+        curveSegments: 4,
+        bevelEnabled : false,
+      });
+      textGeo.computeBoundingBox();
+      const { min, max } = textGeo.boundingBox;
+      textGeo.translate(-(max.x + min.x) / 2, -(max.y + min.y) / 2, 0);
+      return textGeo;
+    } catch {
+      return null;
+    }
+  }, [embossEnabled, embossText, embossFontSize, embossDepth]);
+
+  useEffect(() => {
+    return () => { embossSolidGeo?.dispose(); };
+  }, [embossSolidGeo]);
 
   const embossOutlineLines = useMemo(() => {
     if (!embossEnabled || !embossText) return null;
@@ -263,19 +297,34 @@ function KeycapTemplateNode({ node }) {
 
       {/* Cherry MX stem hole cross outline ──────────────────────────────────
           12-corner dashed cross shaped to the real Cherry MX arm dimensions
-          (CHERRY_CROSS_SIZE × CHERRY_CROSS_THICK).  Placed 0.5 mm above the
-          keycap top so it sits in the XZ plane and is never occluded.       */}
+          (CHERRY_CROSS_SIZE × CHERRY_CROSS_THICK).  Placed at y=0 (the keycap
+          bottom face, 原位) so the indicator sits exactly where the hole is.
+          depthTest:false guarantees visibility from any camera angle.         */}
       {hasStem && (
-        <primitive object={stemCrossLine} position={[0, resolvedHeight + 0.5, 0]} />
+        <primitive object={stemCrossLine} position={[0, 0, 0]} />
       )}
 
-      {/* Emboss text outline ────────────────────────────────────────────────
-          TextGeometry → EdgesGeometry rendered as dashed LineSegments.
-          The -π/2 rotation around X lays the text flat on the keycap top;
-          the extrusion then rises upward (+Y) by embossDepth mm.
-          depthTest:false guarantees visibility from any camera angle.       */}
+      {/* Emboss text 3-D preview (低代价/挖去的方法) ──────────────────────────
+          Solid TextGeometry mesh placed directly on the keycap top surface
+          (原位, y = resolvedHeight).  No CSG needed — the mesh sits on top of
+          the keycap shell and is coloured with embossColor for a realistic
+          preview of the raised text.                                          */}
+      {embossSolidGeo && (
+        <group position={[0, resolvedHeight, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh geometry={embossSolidGeo}>
+            <meshStandardMaterial color={embossColor} roughness={0.35} metalness={0.08} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Emboss text dashed outline ─────────────────────────────────────────
+          TextGeometry → EdgesGeometry rendered as dashed LineSegments at the
+          keycap top surface (原位, y = resolvedHeight).  The -π/2 rotation
+          around X lays the text flat; the extrusion rises upward (+Y) by
+          embossDepth mm.  depthTest:false guarantees visibility from any angle,
+          complementing the solid mesh when it is occluded by the keycap body.  */}
       {embossOutlineLines && (
-        <group position={[0, resolvedHeight + 0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <group position={[0, resolvedHeight, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <primitive object={embossOutlineLines} />
         </group>
       )}
