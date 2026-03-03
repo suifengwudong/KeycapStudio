@@ -9,17 +9,11 @@
  *  5. Position (numeric X/Y + "Center" shortcut for main legend)
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useProjectStore } from '../../store/projectStore.js';
 import { useAssetStore }   from '../../store/assetStore.js';
 import { SIZE_PRESETS }    from '../../core/model/projectModel.js';
-
-const LEGEND_LABELS = {
-  main:        'Main',
-  topLeft:     'Top-Left',
-  bottomRight: 'Bottom-Right',
-  left:        'Left',
-};
+import { useT }            from '../../store/langStore.js';
 
 // ── Small reusable widgets ─────────────────────────────────────────────────
 
@@ -80,6 +74,7 @@ const PRESET_OPTIONS = Object.entries(SIZE_PRESETS).filter(
 );
 
 export default function InspectorPanel() {
+  const t              = useT();
   const project        = useProjectStore(s => s.project);
   const selectedLegend = useProjectStore(s => s.selectedLegend);
   const setSelectedLegend = useProjectStore(s => s.setSelectedLegend);
@@ -94,6 +89,13 @@ export default function InspectorPanel() {
   const { keycap, legends } = project;
   const activeLeg = legends[selectedLegend];
 
+  const LEGEND_LABELS = useMemo(() => ({
+    main:        t('legendMain'),
+    topLeft:     t('legendTopLeft'),
+    bottomRight: t('legendBottomRight'),
+    left:        t('legendLeft'),
+  }), [t]);
+
   const centerMain = useCallback(() => {
     updateLegend('main', { x: 0, y: 0 });
   }, [updateLegend]);
@@ -102,10 +104,10 @@ export default function InspectorPanel() {
     <aside className="w-64 bg-gray-800 border-r border-gray-700 overflow-y-auto p-3 text-sm text-gray-200 flex-shrink-0">
       {/* Brief purpose note */}
       <p className="text-xs text-gray-500 mb-3 leading-snug">
-        Edits the printed label (legend) on a single keycap. Full keyboard layout preview is planned for v2.0.
+        {t('inspectorNote')}
       </p>
       {/* ── 1. Size preset ──────────────────────────────────────────── */}
-      <SectionTitle>Size Preset</SectionTitle>
+      <SectionTitle>{t('sectionSizePreset')}</SectionTitle>
       <select
         value={keycap.preset}
         onChange={e => updateKeycap({ preset: e.target.value })}
@@ -117,14 +119,14 @@ export default function InspectorPanel() {
       </select>
       {isIsoEnterApprox && (
         <p className="text-xs text-yellow-400 mb-1">
-          ⚠ ISO Enter（矩形近似）
+          {t('isoEnterApprox')}
         </p>
       )}
 
       {/* ── 2. Style ────────────────────────────────────────────────── */}
-      <SectionTitle>Style</SectionTitle>
+      <SectionTitle>{t('sectionStyle')}</SectionTitle>
       <ColorInput
-        label="Background"
+        label={t('background')}
         value={keycap.bgColor}
         onChange={c => updateKeycap({ bgColor: c })}
       />
@@ -137,18 +139,18 @@ export default function InspectorPanel() {
           className="accent-blue-500"
         />
         <label htmlFor="outline-toggle" className="text-xs text-gray-300 flex-1 cursor-pointer">
-          Outline
+          {t('outline')}
         </label>
       </div>
       {keycap.outlineEnabled && (
         <>
           <ColorInput
-            label="Outline color"
+            label={t('outlineColor')}
             value={keycap.outlineColor}
             onChange={c => updateKeycap({ outlineColor: c })}
           />
           <div className="flex items-center justify-between gap-2 mb-1">
-            <label className="text-xs text-gray-300">Thickness</label>
+            <label className="text-xs text-gray-300">{t('outlineThickness')}</label>
             <input
               type="range"
               min={1} max={8} step={0.5}
@@ -162,7 +164,7 @@ export default function InspectorPanel() {
       )}
 
       {/* ── 3. Legends ──────────────────────────────────────────────── */}
-      <SectionTitle>Legends</SectionTitle>
+      <SectionTitle>{t('sectionLegends')}</SectionTitle>
       <div className="flex gap-1 flex-wrap mb-2">
         {Object.keys(LEGEND_LABELS).map(key => (
           <button
@@ -193,7 +195,7 @@ export default function InspectorPanel() {
               htmlFor={`legend-enabled-${selectedLegend}`}
               className="text-xs text-gray-300 cursor-pointer"
             >
-              Enabled
+              {t('legendEnabled')}
             </label>
           </div>
 
@@ -207,12 +209,12 @@ export default function InspectorPanel() {
                 className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs"
               />
               <ColorInput
-                label="Text color"
+                label={t('legendTextColor')}
                 value={activeLeg.color}
                 onChange={c => updateLegend(selectedLegend, { color: c })}
               />
               <div className="flex items-center justify-between gap-2">
-                <label className="text-xs text-gray-300">Font size</label>
+                <label className="text-xs text-gray-300">{t('legendFontSize')}</label>
                 <input
                   type="number"
                   min={6} max={72} step={1}
@@ -229,7 +231,7 @@ export default function InspectorPanel() {
       {/* ── 4. Font ─────────────────────────────────────────────────── */}
       {activeLeg?.enabled && (
         <>
-          <SectionTitle>Font</SectionTitle>
+          <SectionTitle>{t('sectionFont')}</SectionTitle>
           <select
             value={activeLeg.font}
             onChange={e => updateLegend(selectedLegend, { font: e.target.value })}
@@ -245,7 +247,7 @@ export default function InspectorPanel() {
       {/* ── 5. Position ─────────────────────────────────────────────── */}
       {activeLeg?.enabled && (
         <>
-          <SectionTitle>Position</SectionTitle>
+          <SectionTitle>{t('sectionPosition')}</SectionTitle>
           <NumericInput
             label="X"
             value={activeLeg.x}
@@ -261,7 +263,7 @@ export default function InspectorPanel() {
               onClick={centerMain}
               className="mt-1 w-full py-1 rounded text-xs bg-gray-700 hover:bg-gray-600 border border-gray-600"
             >
-              Center main legend
+              {t('centerMainLegend')}
             </button>
           )}
         </>

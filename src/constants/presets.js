@@ -32,7 +32,7 @@ export function buildPresetKcs(preset) {
         embossEnabled: !!(preset.embossText),
         embossText   : preset.embossText ?? '',
         embossFontSize: 5,
-        embossDepth  : 0.4,
+        embossDepth  : 1.0,
       },
     },
     legend2d: {

@@ -48,7 +48,7 @@ export function defaultShape3d() {
     params: {
       profile       : 'Cherry',
       size          : '1u',
-      color         : '#ffffff',
+      color         : '#c8dff0',
       text          : 'A',
       fontSize      : 14,
       textDepth     : 0.5,
@@ -61,7 +61,7 @@ export function defaultShape3d() {
       embossEnabled : false,
       embossText    : '',
       embossFontSize: 5,      // mm – recommended: 4–6 mm for 1u keys
-      embossDepth   : 0.4,    // mm – recommended: 0.3–0.6 mm for FDM printing
+      embossDepth   : 1.0,    // mm – 1.0 mm default for 3D preview visibility
     },
   };
 }
