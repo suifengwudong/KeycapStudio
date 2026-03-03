@@ -383,7 +383,13 @@ export class OptimizedKeycapGenerator {
     }
     pos.needsUpdate = true;
     geo.computeVertexNormals();
-    return geo;
+
+    // ExtrudeGeometry (used for the body) is always non-indexed.
+    // PlaneGeometry is indexed.  mergeGeometries() requires all inputs to use
+    // the same indexing scheme, so convert to non-indexed before returning.
+    const nonIndexed = geo.toNonIndexed();
+    geo.dispose();
+    return nonIndexed;
   }
 
   /**
