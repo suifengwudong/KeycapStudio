@@ -54,9 +54,13 @@ export class OptimizedKeycapGenerator {
     const { topRadius, dishDepth, height, bottomWidth, bottomDepth, topWidth, topDepth } = this._resolveParams(params);
 
     // 固定最少分段数，不动态计算
+    // NOTE: ExtrudeGeometry with a Y-axis extrudePath maps shape.x → world Z and
+    // shape.y → world X (Frenet frame: N=(0,0,−1), B=(−1,0,0)).  Pass depth as the
+    // first argument (→ world Z) and width as the second (→ world X) so the body is
+    // correctly oriented: world X = key width, world Z = key depth.
     const bottomShape = this._createRoundedRectShape(
-      bottomWidth / 2,
       bottomDepth / 2,
+      bottomWidth / 2,
       topRadius,
       8
     );
@@ -219,9 +223,10 @@ export class OptimizedKeycapGenerator {
     const curveSegments = this._calculateOptimalSegments(bottomWidth, bottomDepth);
     
     // 2. 创建底部轮廓（圆角矩形）
+    // See generateInstantPreview for the axis mapping explanation.
     const bottomShape = this._createRoundedRectShape(
-      bottomWidth / 2, 
-      bottomDepth / 2, 
+      bottomDepth / 2,
+      bottomWidth / 2,
       topRadius,
       curveSegments
     );
