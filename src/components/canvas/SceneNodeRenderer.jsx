@@ -17,7 +17,7 @@ import * as THREE from 'three';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import { NODE_TYPES } from '../../core/model/sceneDocument';
 import { PROFILES } from '../../constants/profiles';
-import { CHERRY_CROSS_SIZE, CHERRY_CROSS_THICK, CHERRY_STEM_DEPTH } from '../../constants/cherry';
+import { CHERRY_CROSS_SIZE, CHERRY_CROSS_THICK, CHERRY_STEM_DEPTH, CHERRY_DISH_DEPTH, CHERRY_TOP_WIDTH, CHERRY_TOP_DEPTH, CHERRY_DISH_EXPONENT } from '../../constants/cherry';
 import { OptimizedKeycapGenerator, getKeycapFont } from '../../core/geometry/OptimizedKeycapGenerator';
 
 // ─── Module-level instant-preview generator + LRU cache ──────────────────────
@@ -26,6 +26,36 @@ import { OptimizedKeycapGenerator, getKeycapFont } from '../../core/geometry/Opt
  *  Kept separate from embossColor (the user-chosen material colour) so the
  *  outline is always clearly visible regardless of the keycap / emboss colour. */
 const EMBOSS_OUTLINE_COLOR = '#00e5ff';
+
+/**
+ * Adjust every vertex of a (pre-rotation) TextGeometry so the extrusion base
+ * conforms to the keycap's concave top surface (dish) rather than a flat plane.
+ *
+ * Coordinate mapping after the group's -π/2 X-rotation:
+ *   text (vx, vy, vz)  →  world (vx, vz, -vy)
+ * The keycap top surface at world (wx, wz) = (vx, -vy) has
+ *   Y = keycapHeight – sag(vx, vy)   where dist = √(vx²+vy²)
+ * Subtracting sag from vz shifts the whole extrusion column down so its base
+ * tracks the curved surface instead of a flat plane at the centre height.
+ *
+ * @param {THREE.BufferGeometry} geo       – TextGeometry centred in X and Y
+ * @param {number}               dishDepth – dish concavity in mm
+ * @param {number}               topWidth  – keycap top surface width in mm
+ * @param {number}               topDepth  – keycap top surface depth in mm
+ */
+function _applyDishSnap(geo, dishDepth, topWidth, topDepth) {
+  const maxDim = Math.max(topWidth, topDepth) / 2;
+  const pos    = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const vx   = pos.getX(i);
+    const vy   = pos.getY(i);
+    const dist = Math.sqrt(vx * vx + vy * vy);
+    const nd   = Math.min(dist / maxDim, 1.0);
+    const sag  = Math.pow(nd, CHERRY_DISH_EXPONENT) * dishDepth;
+    pos.setZ(i, pos.getZ(i) - sag);
+  }
+  pos.needsUpdate = true;
+}
 
 const _previewGen = new OptimizedKeycapGenerator();
 /** Keyed by shape-affecting params only (color / hasStem / wallThickness excluded). */
@@ -223,6 +253,9 @@ function KeycapTemplateNode({ node }) {
   const embossDepth    = p.embossDepth ?? 1.0;
   const embossColor    = p.embossColor ?? '#222222';
 
+  // Resolved dish depth used for surface-snapping the preview emboss text.
+  const resolvedDishDepth = dishDepth != null ? dishDepth : CHERRY_DISH_DEPTH;
+
   // Solid emboss preview mesh (low-cost: no CSG, just TextGeometry mesh).
   const embossSolidGeo = useMemo(() => {
     if (!embossEnabled || !embossText) return null;
@@ -239,11 +272,14 @@ function KeycapTemplateNode({ node }) {
       textGeo.computeBoundingBox();
       const { min, max } = textGeo.boundingBox;
       textGeo.translate(-(max.x + min.x) / 2, -(max.y + min.y) / 2, 0);
+      // Snap the extrusion base to the keycap's concave top surface so the
+      // text lies on the dish rather than hovering on a flat plane.
+      _applyDishSnap(textGeo, resolvedDishDepth, CHERRY_TOP_WIDTH, CHERRY_TOP_DEPTH);
       return textGeo;
     } catch {
       return null;
     }
-  }, [embossEnabled, embossText, embossFontSize, embossDepth]);
+  }, [embossEnabled, embossText, embossFontSize, embossDepth, resolvedDishDepth]);
 
   useEffect(() => {
     return () => { embossSolidGeo?.dispose(); };
@@ -271,6 +307,8 @@ function KeycapTemplateNode({ node }) {
         -(max.y + min.y) / 2,
         0,
       );
+      // Snap to the keycap dish surface for consistent appearance with the solid mesh.
+      _applyDishSnap(textGeo, resolvedDishDepth, CHERRY_TOP_WIDTH, CHERRY_TOP_DEPTH);
 
       // EdgesGeometry extracts every sharp edge from the extruded solid,
       // giving a faithful dashed-line silhouette of the actual text volume.
@@ -295,7 +333,7 @@ function KeycapTemplateNode({ node }) {
       // A null return causes the emboss indicator to be hidden gracefully.
       return null;
     }
-  }, [embossEnabled, embossText, embossFontSize, embossDepth]);
+  }, [embossEnabled, embossText, embossFontSize, embossDepth, resolvedDishDepth]);
 
   // Dispose emboss outline on change or unmount to prevent leaks.
   useEffect(() => {

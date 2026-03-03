@@ -12,8 +12,8 @@ import {
   CHERRY_CROSS_THICK,
   CHERRY_STEM_DEPTH,
   CHERRY_SMOOTH_ANGLE,
+  CHERRY_DISH_EXPONENT,
 } from '../../constants/cherry';
-
 /** Recommended emboss parameter bounds (kept in sync with KeycapInspector sliders). */
 const EMBOSS_FONT_SIZE_MIN  = 2;
 const EMBOSS_FONT_SIZE_MAX  = 10;
@@ -345,7 +345,7 @@ export class OptimizedKeycapGenerator {
         const normalizedDist = Math.min(distXZ / maxDim, 1.0);
         
         // 使用抛物线内凹
-        const sag = Math.pow(normalizedDist, 2.2) * dishDepth * topFactor;
+        const sag = Math.pow(normalizedDist, CHERRY_DISH_EXPONENT) * dishDepth * topFactor;
         newY -= sag;
       }
 
@@ -566,15 +566,27 @@ export class OptimizedKeycapGenerator {
         bevelEnabled  : false,
       });
 
-      // Center text in X/Z and place its bottom face at the keycap top surface.
+      // Center text in the character plane (X = horizontal, Y = character height).
       textGeo.computeBoundingBox();
-      const bb     = textGeo.boundingBox;
-      const cx     = (bb.max.x + bb.min.x) / 2;
-      const cz     = (bb.max.z + bb.min.z) / 2;
-      // y: place emboss so its base is just below the keycap top (for solid overlap)
-      textGeo.translate(-cx, keycapHeight - depth * 0.5, -cz);
+      const bb = textGeo.boundingBox;
+      textGeo.translate(
+        -(bb.max.x + bb.min.x) / 2,
+        -(bb.max.y + bb.min.y) / 2,
+        0,
+      );
 
       const textMesh = new THREE.Mesh(textGeo, mesh.material);
+
+      // Rotate to lay flat on the keycap top surface.
+      // TextGeometry is in the XY plane, extruding in +Z.
+      // After -90° rotation around X: face (Z=0) lies flat in the XZ plane;
+      // the extrusion direction (+Z) maps to +Y, so text rises above the surface.
+      textMesh.rotation.x = -Math.PI / 2;
+
+      // Place the text base at the keycap top surface centre.
+      // A small downward overlap (depth × 0.1) ensures a clean CSG union.
+      textMesh.position.y = keycapHeight - depth * 0.1;
+
       textMesh.updateMatrix();
       mesh.updateMatrix();
 
