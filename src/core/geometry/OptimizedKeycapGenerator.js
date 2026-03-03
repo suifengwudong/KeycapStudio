@@ -367,9 +367,15 @@ export class OptimizedKeycapGenerator {
                :                                      12;
 
     // Lay the plane flat in XZ with normals pointing +Y.
-    const geo = new THREE.PlaneGeometry(topWidth, topDepth, segs, segs);
-    geo.rotateX(-Math.PI / 2);
-    geo.translate(0, height, 0);
+    const indexed = new THREE.PlaneGeometry(topWidth, topDepth, segs, segs);
+    indexed.rotateX(-Math.PI / 2);
+    indexed.translate(0, height, 0);
+
+    // ExtrudeGeometry with extrudePath produces a non-indexed geometry.
+    // mergeGeometries requires both inputs to have the same indexing strategy,
+    // so convert here before applying the dish deformation.
+    const geo = indexed.toNonIndexed();
+    indexed.dispose();
 
     const pos    = geo.attributes.position;
     const maxDim = Math.max(topWidth, topDepth) / 2;
@@ -453,7 +459,9 @@ export class OptimizedKeycapGenerator {
     const indices = geometry.index;
 
     if (!indices) {
-      console.warn('Geometry is not indexed, skipping smooth normals');
+      // Non-indexed geometry (e.g. after mergeGeometries on non-indexed inputs):
+      // recompute normals rather than leaving them stale from pre-deformation.
+      geometry.computeVertexNormals();
       return;
     }
 
