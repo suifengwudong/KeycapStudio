@@ -14,6 +14,7 @@ import {
   CHERRY_STEM_DEPTH,
   CHERRY_SMOOTH_ANGLE,
   CHERRY_DISH_EXPONENT,
+  computeTopDimensions,
 } from '../../constants/cherry';
 /** Recommended emboss parameter bounds (kept in sync with KeycapInspector sliders). */
 const EMBOSS_FONT_SIZE_MIN  = 2;
@@ -50,7 +51,7 @@ export class OptimizedKeycapGenerator {
    * 适合首次渲染展示，让用户立即看到图形
    */
   generateInstantPreview(params) {
-    const { topRadius, dishDepth, height, bottomWidth, bottomDepth } = this._resolveParams(params);
+    const { topRadius, dishDepth, height, bottomWidth, bottomDepth, topWidth, topDepth } = this._resolveParams(params);
 
     // 固定最少分段数，不动态计算
     const bottomShape = this._createRoundedRectShape(
@@ -76,8 +77,8 @@ export class OptimizedKeycapGenerator {
       bottomWidth,
       bottomDepth,
       height,
-      CHERRY_TOP_WIDTH,
-      CHERRY_TOP_DEPTH,
+      topWidth,
+      topDepth,
       dishDepth
     );
 
@@ -85,7 +86,7 @@ export class OptimizedKeycapGenerator {
     // sag they all end up at the same Y and the top looks flat.  Merge in a
     // subdivided PlaneGeometry cap whose interior vertices stay near y=height
     // while the edges sag to y=height−dishDepth, making the bowl visible.
-    const capGeo   = this._buildTopCapGeometry(CHERRY_TOP_WIDTH, CHERRY_TOP_DEPTH, height, dishDepth);
+    const capGeo   = this._buildTopCapGeometry(topWidth, topDepth, height, dishDepth);
     const mergedGeo = mergeGeometries([geometry, capGeo]);
     geometry.dispose();
     capGeo.dispose();
@@ -190,6 +191,11 @@ export class OptimizedKeycapGenerator {
     const sizeData     = KEYCAP_SIZES[size] || KEYCAP_SIZES['1u'];
     const height       = params.height || profileData.baseHeight;
 
+    // Top face scales proportionally with the key size using the Cherry taper ratio.
+    // For standard keys (depth=18): topDepth = 12.7 mm always; only topWidth grows.
+    // For ISO-Enter (depth=27): both dimensions scale.
+    const { topWidth, topDepth } = computeTopDimensions(sizeData.width, sizeData.depth);
+
     return {
       topRadius,
       dishDepth,
@@ -197,6 +203,8 @@ export class OptimizedKeycapGenerator {
       height,
       bottomWidth : sizeData.width,
       bottomDepth : sizeData.depth,
+      topWidth,
+      topDepth,
     };
   }
 
@@ -204,6 +212,9 @@ export class OptimizedKeycapGenerator {
    * 创建高质量键帽网格
    */
   _createHighQualityMesh(bottomWidth, bottomDepth, height, profileData, topRadius, dishDepth = CHERRY_DISH_DEPTH) {
+    // Compute correct top-face dimensions for this key size.
+    const { topWidth, topDepth } = computeTopDimensions(bottomWidth, bottomDepth);
+
     // 1. 动态计算最优分段数
     const curveSegments = this._calculateOptimalSegments(bottomWidth, bottomDepth);
     
@@ -237,16 +248,13 @@ export class OptimizedKeycapGenerator {
       bottomWidth, 
       bottomDepth, 
       height, 
-      CHERRY_TOP_WIDTH,
-      CHERRY_TOP_DEPTH,
+      topWidth,
+      topDepth,
       dishDepth
     );
 
     // Merge subdivided top cap so the dish curvature is visible.
-    // ExtrudeGeometry's top cap has only perimeter vertices, which after
-    // uniform sag produce a flat-looking surface.  The PlaneGeometry cap
-    // has interior vertices that form a proper bowl.
-    const capGeo  = this._buildTopCapGeometry(CHERRY_TOP_WIDTH, CHERRY_TOP_DEPTH, height, dishDepth);
+    const capGeo  = this._buildTopCapGeometry(topWidth, topDepth, height, dishDepth);
     const merged  = mergeGeometries([bodyGeo, capGeo]);
     bodyGeo.dispose();
     capGeo.dispose();
@@ -342,24 +350,21 @@ export class OptimizedKeycapGenerator {
   }
 
   /**
-   * Build a subdivided top-cap geometry with the dish deformation applied.
+   * Build a subdivided top-cap geometry with the cylindrical dish deformation applied.
    *
-   * ExtrudeGeometry triangulates its top cap using only perimeter vertices,
-   * so after dish deformation every vertex sags by a similar amount and the
-   * top face looks flat.  This method creates a PlaneGeometry grid (with
-   * interior vertices) in the XZ plane at y=height and applies the same
-   * parabolic sag formula used in _applyKeycapDeformation so the top face
-   * shows the correct bowl profile.
+   * Cherry profile uses a cylindrical dish (front-to-back, Z axis only).
+   * ExtrudeGeometry's top cap has only perimeter vertices, which after sag produce a
+   * flat-looking surface.  This PlaneGeometry grid has interior vertices so the bowl
+   * profile is correctly visible.
    *
-   * After rotateX(-π/2):
-   *   - plane normals (0,0,1) → (0,1,0)  ✓ points upward
-   *   - vertex (x, y, 0)     → (x, 0, -y) — flat in XZ at y=0
+   * The PlaneGeometry is converted to non-indexed to match the ExtrudeGeometry body
+   * (required by mergeGeometries).
    *
-   * @param {number} topWidth
-   * @param {number} topDepth
-   * @param {number} height   – cap is placed at this Y value
-   * @param {number} dishDepth
-   * @returns {THREE.BufferGeometry}
+   * @param {number} topWidth   – top face width (mm, scales with key size)
+   * @param {number} topDepth   – top face depth (mm, scales with key depth)
+   * @param {number} height     – cap is placed at this Y value
+   * @param {number} dishDepth  – cylindrical dish depth (mm)
+   * @returns {THREE.BufferGeometry}  non-indexed geometry
    */
   _buildTopCapGeometry(topWidth, topDepth, height, dishDepth) {
     const segs = this.performanceMode === 'quality' ? 16
@@ -371,35 +376,28 @@ export class OptimizedKeycapGenerator {
     indexed.rotateX(-Math.PI / 2);
     indexed.translate(0, height, 0);
 
-    // ExtrudeGeometry with extrudePath produces a non-indexed geometry.
-    // mergeGeometries requires both inputs to have the same indexing strategy,
-    // so convert here before applying the dish deformation.
+    // Convert to non-indexed to match the non-indexed ExtrudeGeometry body.
+    // mergeGeometries() requires a uniform indexing scheme across all inputs.
     const geo = indexed.toNonIndexed();
     indexed.dispose();
 
-    const pos    = geo.attributes.position;
-    const maxDim = Math.max(topWidth, topDepth) / 2;
+    const pos       = geo.attributes.position;
+    const halfDepth = topDepth / 2;
 
+    // Cylindrical dish: curvature in Z only (front-to-back).
+    // The X (left-right) direction is flat – correct for Cherry profile.
     for (let i = 0; i < pos.count; i++) {
-      const x   = pos.getX(i);
-      const z   = pos.getZ(i);
-      const nd  = Math.min(Math.sqrt(x * x + z * z) / maxDim, 1.0);
-      const sag = Math.pow(nd, CHERRY_DISH_EXPONENT) * dishDepth;
-      pos.setY(i, height - sag);
+      const z  = pos.getZ(i);
+      const nz = Math.min(Math.abs(z) / halfDepth, 1.0);
+      pos.setY(i, height - Math.pow(nz, CHERRY_DISH_EXPONENT) * dishDepth);
     }
     pos.needsUpdate = true;
     geo.computeVertexNormals();
-
-    // ExtrudeGeometry (used for the body) is always non-indexed.
-    // PlaneGeometry is indexed.  mergeGeometries() requires all inputs to use
-    // the same indexing scheme, so convert to non-indexed before returning.
-    const nonIndexed = geo.toNonIndexed();
-    geo.dispose();
-    return nonIndexed;
+    return geo;  // already non-indexed
   }
 
   /**
-   * 应用键帽变形
+   * 应用键帽变形：梯形缩放（底宽到顶宽）+ 顶部柱面内凹（Cherry 标准）
    */
   _applyKeycapDeformation(geometry, bottomWidth, bottomDepth, height, topWidth, topDepth, dishDepth) {
     const pos = geometry.attributes.position;
@@ -421,15 +419,14 @@ export class OptimizedKeycapGenerator {
       let newZ = z * scaleZ;
       let newY = y;
 
-      // 顶部内凹（球面）
+      // 顶部内凹（柱面，仅 Z 方向，符合 Cherry MX 标准）
+      // Wide keys like the spacebar stay flat left-right; only the front-back
+      // direction curves.
       if (normalizedY > 0.8) {
-        const topFactor = (normalizedY - 0.8) / 0.2; // 0~1
-        const distXZ = Math.sqrt(newX * newX + newZ * newZ);
-        const maxDim = Math.max(topWidth, topDepth) / 2;
-        const normalizedDist = Math.min(distXZ / maxDim, 1.0);
-        
-        // 使用抛物线内凹
-        const sag = Math.pow(normalizedDist, CHERRY_DISH_EXPONENT) * dishDepth * topFactor;
+        const topFactor  = (normalizedY - 0.8) / 0.2; // 0→1
+        const halfTopDepth = topDepth / 2;
+        const nz = Math.min(Math.abs(newZ) / halfTopDepth, 1.0);
+        const sag = Math.pow(nz, CHERRY_DISH_EXPONENT) * dishDepth * topFactor;
         newY -= sag;
       }
 
