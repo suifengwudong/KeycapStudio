@@ -38,7 +38,7 @@ describe('createPrimitive', () => {
     expect(n.params.width).toBe(18);
     expect(n.params.height).toBe(11.5);
     expect(n.params.depth).toBe(18);
-    expect(n.material.color).toBe('#cccccc');
+    expect(n.material.color).toBe('#c8dff0');
     expect(n.position).toEqual([0, 0, 0]);
   });
 
@@ -87,7 +87,7 @@ describe('createKeycapNode', () => {
     expect(n.params.profile).toBe('Cherry');
     expect(n.params.size).toBe('1u');
     expect(n.params.hasStem).toBe(true);
-    expect(n.params.color).toBe('#cccccc');
+    expect(n.params.color).toBe('#c8dff0');
   });
 
   it('accepts param overrides', () => {

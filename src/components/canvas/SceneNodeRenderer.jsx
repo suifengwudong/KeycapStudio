@@ -17,7 +17,7 @@ import * as THREE from 'three';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import { NODE_TYPES } from '../../core/model/sceneDocument';
 import { PROFILES } from '../../constants/profiles';
-import { CHERRY_CROSS_SIZE } from '../../constants/cherry';
+import { CHERRY_CROSS_SIZE, CHERRY_CROSS_THICK } from '../../constants/cherry';
 import { OptimizedKeycapGenerator, getKeycapFont } from '../../core/geometry/OptimizedKeycapGenerator';
 
 // ─── Module-level instant-preview generator + LRU cache ──────────────────────
@@ -59,7 +59,7 @@ function PrimitiveNode({ node }) {
   const p   = node.params   ?? {};
   const pos = node.position ?? [0, 0, 0];
   const rot = node.rotation ?? [0, 0, 0];
-  const col = node.material?.color ?? '#cccccc';
+  const col = node.material?.color ?? '#c8dff0';
 
   let geo;
   switch (node.primitive) {
@@ -110,7 +110,7 @@ function KeycapTemplateNode({ node }) {
   // dishDepth / height may be null → _resolveParams falls back to profile defaults
   const dishDepth = p.dishDepth;
   const height    = p.height;
-  const color     = p.color ?? '#cccccc';
+  const color     = p.color ?? '#c8dff0';
   const hasStem   = p.hasStem ?? true;
 
   // Resolve actual keycap height for overlay positioning.
@@ -130,66 +130,119 @@ function KeycapTemplateNode({ node }) {
   }, [profile, size, topRadius, dishDepth, height]);
 
   // Cherry MX stem hole dashed-line cross indicator ─────────────────────────
-  // Two perpendicular LineSegments in the XZ plane using LineDashedMaterial
-  // so the indicator is visually distinct from the keycap body.
-  // Created once per component instance (deps are constants).
-  const stemDashLines = useMemo(() => {
-    const positions = new Float32Array([
-      // Horizontal arm (along X)
-      -CHERRY_CROSS_SIZE / 2, 0, 0,
-       CHERRY_CROSS_SIZE / 2, 0, 0,
-      // Lateral arm (along Z)
-      0, 0, -CHERRY_CROSS_SIZE / 2,
-      0, 0,  CHERRY_CROSS_SIZE / 2,
-    ]);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.LineDashedMaterial({ color: '#ff6600', dashSize: 0.8, gapSize: 0.4 });
-    const lines = new THREE.LineSegments(geo, mat);
-    lines.computeLineDistances();
-    // Set position here so the primitive element needs no prop update each render.
-    lines.position.set(0, -0.1, 0);
-    return lines;
+  // Draws the ACTUAL cross outline shape (12-corner polygon with real arm
+  // thickness = CHERRY_CROSS_THICK) using depthTest:false so it is ALWAYS
+  // visible regardless of camera angle.
+  const stemCrossLine = useMemo(() => {
+    const chs = CHERRY_CROSS_SIZE  / 2;  // arm half-length
+    const cht = CHERRY_CROSS_THICK / 2;  // arm half-thickness
+
+    // 12 corners of the cross outline (XZ plane, Y=0).
+    // Clockwise from top-left corner of the top arm:
+    //        ┌───┐
+    //   ─────┤   ├─────
+    //   ─────┤   ├─────
+    //        └───┘
+    const pts = [
+      new THREE.Vector3(-cht, 0, -chs),  // A — top of left arm
+      new THREE.Vector3( cht, 0, -chs),  // B — top of right arm
+      new THREE.Vector3( cht, 0, -cht),  // C — inner top-right
+      new THREE.Vector3( chs, 0, -cht),  // D — right of horizontal arm
+      new THREE.Vector3( chs, 0,  cht),  // E — right of horizontal arm (bottom)
+      new THREE.Vector3( cht, 0,  cht),  // F — inner bottom-right
+      new THREE.Vector3( cht, 0,  chs),  // G — bottom of right arm
+      new THREE.Vector3(-cht, 0,  chs),  // H — bottom of left arm
+      new THREE.Vector3(-cht, 0,  cht),  // I — inner bottom-left
+      new THREE.Vector3(-chs, 0,  cht),  // J — left of horizontal arm (bottom)
+      new THREE.Vector3(-chs, 0, -cht),  // K — left of horizontal arm
+      new THREE.Vector3(-cht, 0, -cht),  // L — inner top-left
+      new THREE.Vector3(-cht, 0, -chs),  // close back to A
+    ];
+
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineDashedMaterial({
+      color     : '#ff6600',
+      dashSize  : 0.5,
+      gapSize   : 0.3,
+      depthTest : false,
+      depthWrite: false,
+    });
+    const line = new THREE.Line(geo, mat);
+    line.computeLineDistances();
+    line.renderOrder = 999;
+    return line;
   }, []);
 
   // Dispose Three.js objects when the component unmounts.
   useEffect(() => {
     return () => {
-      stemDashLines.geometry.dispose();
-      stemDashLines.material.dispose();
+      stemCrossLine.geometry.dispose();
+      stemCrossLine.material.dispose();
     };
-  }, [stemDashLines]);
+  }, [stemCrossLine]);
 
-  // Emboss text geometry (optional) ─────────────────────────────────────────
-  // TextGeometry is created synchronously using the module-level font singleton.
-  // The geometry is centred in the XY plane (before rotation); a -π/2 rotation
-  // around X lays it flat on the horizontal keycap top surface.
+  // Emboss text dashed-outline indicator ─────────────────────────────────────
+  // Uses TextGeometry + EdgesGeometry to draw the ACTUAL extruded-text silhouette
+  // as dashed lines.  depthTest:false ensures visibility regardless of occlusion.
   const embossEnabled  = p.embossEnabled ?? false;
   const embossText     = (p.embossText ?? '').trim();
   const embossFontSize = p.embossFontSize ?? 5;
-  const embossDepth    = p.embossDepth ?? 0.4;
+  const embossDepth    = p.embossDepth ?? 1.0;
+  const embossColor    = p.embossColor ?? '#222222';
 
-  const embossGeo = useMemo(() => {
+  const embossOutlineLines = useMemo(() => {
     if (!embossEnabled || !embossText) return null;
     try {
       const font = getKeycapFont();
       if (!font) return null;
-      const geo  = new TextGeometry(embossText, {
+
+      // Build the same TextGeometry that the STL export uses.
+      const textGeo = new TextGeometry(embossText, {
         font,
         size         : Math.max(2, Math.min(10, embossFontSize)),
         height       : Math.max(0.1, Math.min(2.0, embossDepth)),
         curveSegments: 4,
         bevelEnabled : false,
       });
-      geo.computeBoundingBox();
-      const { min, max } = geo.boundingBox;
-      // Centre in XY before rotation (after -π/2 around X, X stays X and Y→Z)
-      geo.translate(-(max.x + min.x) / 2, -(max.y + min.y) / 2, 0);
-      return geo;
+      textGeo.computeBoundingBox();
+      const { min, max } = textGeo.boundingBox;
+      // Centre in XY before the -π/2 rotation applied at render time.
+      textGeo.translate(
+        -(max.x + min.x) / 2,
+        -(max.y + min.y) / 2,
+        0,
+      );
+
+      // EdgesGeometry extracts every sharp edge from the extruded solid,
+      // giving a faithful dashed-line silhouette of the actual text volume.
+      const edgesGeo = new THREE.EdgesGeometry(textGeo);
+      textGeo.dispose();  // original solid geometry no longer needed
+
+      const mat = new THREE.LineDashedMaterial({
+        color     : embossColor,
+        dashSize  : 0.3,
+        gapSize   : 0.2,
+        depthTest : false,
+        depthWrite: false,
+      });
+      const lines = new THREE.LineSegments(edgesGeo, mat);
+      lines.computeLineDistances();
+      lines.renderOrder = 999;
+      return lines;
     } catch {
+      // Font may not yet be available (e.g. in test environments).
+      // A null return causes the emboss indicator to be hidden gracefully.
       return null;
     }
-  }, [embossEnabled, embossText, embossFontSize, embossDepth]);
+  }, [embossEnabled, embossText, embossFontSize, embossDepth, embossColor]);
+
+  // Dispose emboss outline on change or unmount to prevent leaks.
+  useEffect(() => {
+    return () => {
+      embossOutlineLines?.geometry.dispose();
+      embossOutlineLines?.material.dispose();
+    };
+  }, [embossOutlineLines]);
 
   if (!geometry) {
     // Fallback rendered only when generateInstantPreview throws (should not occur in practice)
@@ -208,27 +261,23 @@ function KeycapTemplateNode({ node }) {
         <meshStandardMaterial color={color} roughness={0.35} metalness={0.08} />
       </mesh>
 
-      {/* Cherry MX stem hole indicator ─────────────────────────────────────
-          Two dashed orange lines forming a cross in the XZ plane, positioned
-          just below the keycap bottom face (y = −0.1). Clearly visible when
-          the user orbits to inspect the keycap underside. */}
+      {/* Cherry MX stem hole cross outline ──────────────────────────────────
+          12-corner dashed cross shaped to the real Cherry MX arm dimensions
+          (CHERRY_CROSS_SIZE × CHERRY_CROSS_THICK).  Placed 0.5 mm above the
+          keycap top so it sits in the XZ plane and is never occluded.       */}
       {hasStem && (
-        <primitive object={stemDashLines} />
+        <primitive object={stemCrossLine} position={[0, resolvedHeight + 0.5, 0]} />
       )}
 
-      {/* Emboss text preview ──────────────────────────────────────────────
-          TextGeometry (XY plane, extruding +Z) is rotated -π/2 around X so it
-          lies flat in the XZ plane extruding upward (+Y) from the keycap top.
-          Positioned flush with the top surface (no clearance gap). */}
-      {embossGeo && (
-        <mesh
-          geometry={embossGeo}
-          position={[0, resolvedHeight, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          castShadow
-        >
-          <meshStandardMaterial color={color} roughness={0.35} metalness={0.08} />
-        </mesh>
+      {/* Emboss text outline ────────────────────────────────────────────────
+          TextGeometry → EdgesGeometry rendered as dashed LineSegments.
+          The -π/2 rotation around X lays the text flat on the keycap top;
+          the extrusion then rises upward (+Y) by embossDepth mm.
+          depthTest:false guarantees visibility from any camera angle.       */}
+      {embossOutlineLines && (
+        <group position={[0, resolvedHeight + 0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <primitive object={embossOutlineLines} />
+        </group>
       )}
     </group>
   );
@@ -240,7 +289,7 @@ function GhostPrimitive({ node }) {
   const p   = node.params   ?? {};
   const pos = node.position ?? [0, 0, 0];
   const rot = node.rotation ?? [0, 0, 0];
-  const col = node.material?.color ?? '#cccccc';
+  const col = node.material?.color ?? '#c8dff0';
 
   let geo;
   switch (node.primitive) {
