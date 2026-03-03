@@ -17,10 +17,15 @@ import * as THREE from 'three';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 import { NODE_TYPES } from '../../core/model/sceneDocument';
 import { PROFILES } from '../../constants/profiles';
-import { CHERRY_CROSS_SIZE, CHERRY_CROSS_THICK } from '../../constants/cherry';
+import { CHERRY_CROSS_SIZE, CHERRY_CROSS_THICK, CHERRY_STEM_DEPTH } from '../../constants/cherry';
 import { OptimizedKeycapGenerator, getKeycapFont } from '../../core/geometry/OptimizedKeycapGenerator';
 
 // ─── Module-level instant-preview generator + LRU cache ──────────────────────
+
+/** Fixed vivid colour used for the emboss text dashed outline indicator.
+ *  Kept separate from embossColor (the user-chosen material colour) so the
+ *  outline is always clearly visible regardless of the keycap / emboss colour. */
+const EMBOSS_OUTLINE_COLOR = '#00e5ff';
 
 const _previewGen = new OptimizedKeycapGenerator();
 /** Keyed by shape-affecting params only (color / hasStem / wallThickness excluded). */
@@ -130,35 +135,55 @@ function KeycapTemplateNode({ node }) {
   }, [profile, size, topRadius, dishDepth, height]);
 
   // Cherry MX stem hole dashed-line cross indicator ─────────────────────────
-  // Draws the ACTUAL cross outline shape (12-corner polygon with real arm
-  // thickness = CHERRY_CROSS_THICK) using depthTest:false so it is ALWAYS
-  // visible regardless of camera angle.
-  // Placed at y=0 (the keycap bottom face) — 原位, where the hole physically is.
+  // Draws the FULL 3D outline of the cross-shaped hole:
+  //   • bottom face (y=0, keycap bottom) as a closed 12-edge loop
+  //   • top face    (y=CHERRY_STEM_DEPTH, inside keycap) as a closed 12-edge loop
+  //   • 12 vertical edges connecting corresponding corners
+  // depthTest:false keeps the indicator always visible at any camera angle.
   const stemCrossLine = useMemo(() => {
     const chs = CHERRY_CROSS_SIZE  / 2;  // arm half-length
     const cht = CHERRY_CROSS_THICK / 2;  // arm half-thickness
+    const H   = CHERRY_STEM_DEPTH;       // hole depth
 
-    // 12 corners of the cross outline (XZ plane, Y=0).
-    // Clockwise from top-left corner of the top arm:
+    // 12 corners of the cross outline in XZ plane (CW, starting top-left of top arm):
     //        ┌───┐
     //   ─────┤   ├─────
     //   ─────┤   ├─────
     //        └───┘
-    const pts = [
-      new THREE.Vector3(-cht, 0, -chs),  // A — top of left arm
-      new THREE.Vector3( cht, 0, -chs),  // B — top of right arm
-      new THREE.Vector3( cht, 0, -cht),  // C — inner top-right
-      new THREE.Vector3( chs, 0, -cht),  // D — right of horizontal arm
-      new THREE.Vector3( chs, 0,  cht),  // E — right of horizontal arm (bottom)
-      new THREE.Vector3( cht, 0,  cht),  // F — inner bottom-right
-      new THREE.Vector3( cht, 0,  chs),  // G — bottom of right arm
-      new THREE.Vector3(-cht, 0,  chs),  // H — bottom of left arm
-      new THREE.Vector3(-cht, 0,  cht),  // I — inner bottom-left
-      new THREE.Vector3(-chs, 0,  cht),  // J — left of horizontal arm (bottom)
-      new THREE.Vector3(-chs, 0, -cht),  // K — left of horizontal arm
-      new THREE.Vector3(-cht, 0, -cht),  // L — inner top-left
-      new THREE.Vector3(-cht, 0, -chs),  // close back to A
+    const corners = [
+      [-cht, -chs],  // A
+      [ cht, -chs],  // B
+      [ cht, -cht],  // C
+      [ chs, -cht],  // D
+      [ chs,  cht],  // E
+      [ cht,  cht],  // F
+      [ cht,  chs],  // G
+      [-cht,  chs],  // H
+      [-cht,  cht],  // I
+      [-chs,  cht],  // J
+      [-chs, -cht],  // K
+      [-cht, -cht],  // L
     ];
+
+    const n = corners.length;
+    const pts = [];
+
+    // Bottom face loop (y = 0)
+    for (let i = 0; i < n; i++) {
+      const [x0, z0] = corners[i];
+      const [x1, z1] = corners[(i + 1) % n];
+      pts.push(new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, 0, z1));
+    }
+    // Top face loop (y = H)
+    for (let i = 0; i < n; i++) {
+      const [x0, z0] = corners[i];
+      const [x1, z1] = corners[(i + 1) % n];
+      pts.push(new THREE.Vector3(x0, H, z0), new THREE.Vector3(x1, H, z1));
+    }
+    // 12 vertical edges
+    for (const [x, z] of corners) {
+      pts.push(new THREE.Vector3(x, 0, z), new THREE.Vector3(x, H, z));
+    }
 
     const geo = new THREE.BufferGeometry().setFromPoints(pts);
     const mat = new THREE.LineDashedMaterial({
@@ -168,10 +193,10 @@ function KeycapTemplateNode({ node }) {
       depthTest : false,
       depthWrite: false,
     });
-    const line = new THREE.Line(geo, mat);
-    line.computeLineDistances();
-    line.renderOrder = 999;
-    return line;
+    const lines = new THREE.LineSegments(geo, mat);
+    lines.computeLineDistances();
+    lines.renderOrder = 999;
+    return lines;
   }, []);
 
   // Dispose Three.js objects when the component unmounts.
@@ -253,7 +278,9 @@ function KeycapTemplateNode({ node }) {
       textGeo.dispose();  // original solid geometry no longer needed
 
       const mat = new THREE.LineDashedMaterial({
-        color     : embossColor,
+        // Use a fixed vivid cyan so the outline is always clearly visible
+        // regardless of the user's embossColor setting.
+        color     : EMBOSS_OUTLINE_COLOR,
         dashSize  : 0.3,
         gapSize   : 0.2,
         depthTest : false,
@@ -268,7 +295,7 @@ function KeycapTemplateNode({ node }) {
       // A null return causes the emboss indicator to be hidden gracefully.
       return null;
     }
-  }, [embossEnabled, embossText, embossFontSize, embossDepth, embossColor]);
+  }, [embossEnabled, embossText, embossFontSize, embossDepth]);
 
   // Dispose emboss outline on change or unmount to prevent leaks.
   useEffect(() => {
@@ -306,11 +333,12 @@ function KeycapTemplateNode({ node }) {
 
       {/* Emboss text 3-D preview (低代价/挖去的方法) ──────────────────────────
           Solid TextGeometry mesh placed directly on the keycap top surface
-          (原位, y = resolvedHeight).  No CSG needed — the mesh sits on top of
+          (原位, y ≈ resolvedHeight).  No CSG needed — the mesh sits on top of
           the keycap shell and is coloured with embossColor for a realistic
-          preview of the raised text.                                          */}
+          preview of the raised text.  +0.02 mm offset prevents z-fighting
+          between the text base face and the keycap top face.                  */}
       {embossSolidGeo && (
-        <group position={[0, resolvedHeight, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <group position={[0, resolvedHeight + 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <mesh geometry={embossSolidGeo}>
             <meshStandardMaterial color={embossColor} roughness={0.35} metalness={0.08} />
           </mesh>
@@ -319,12 +347,12 @@ function KeycapTemplateNode({ node }) {
 
       {/* Emboss text dashed outline ─────────────────────────────────────────
           TextGeometry → EdgesGeometry rendered as dashed LineSegments at the
-          keycap top surface (原位, y = resolvedHeight).  The -π/2 rotation
-          around X lays the text flat; the extrusion rises upward (+Y) by
-          embossDepth mm.  depthTest:false guarantees visibility from any angle,
-          complementing the solid mesh when it is occluded by the keycap body.  */}
+          keycap top surface (原位, y ≈ resolvedHeight).  Uses a fixed vivid
+          cyan (#00e5ff) so the outline is always clearly visible regardless
+          of the user's embossColor.  depthTest:false guarantees visibility
+          from any camera angle.                                               */}
       {embossOutlineLines && (
-        <group position={[0, resolvedHeight, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <group position={[0, resolvedHeight + 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <primitive object={embossOutlineLines} />
         </group>
       )}
