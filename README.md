@@ -2,6 +2,8 @@
 
 > Design and export production-ready 3D keycap models (STL) with a clean, single-page browser-based tool.
 
+> If you want to read the Chinese version of this README, please check the pdf file in the `docs/txt` folder.
+
 ---
 
 ## V1.4 – Single-Mode Redesign & Indicator Overhaul
