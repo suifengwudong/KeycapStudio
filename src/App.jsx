@@ -3,7 +3,7 @@ import DesignHeader   from './components/layout/DesignHeader';
 import ExportOverlay  from './components/common/ExportOverlay';
 import PresetsGallery from './components/common/PresetsGallery';
 import { useAssetStore, readKcsAutosave } from './store/assetStore';
-import { startKcsAutosave, stopKcsAutosave } from './core/io/kcsIO';
+import { startKcsAutosave, stopKcsAutosave, clearKcsAutosave } from './core/io/kcsIO';
 import { useExportController } from './hooks/useExportController';
 import { useT } from './store/langStore';
 
@@ -33,6 +33,7 @@ export default function App() {
       if (restore) {
         loadAsset(saved, { resetDirty: true });
       } else {
+        clearKcsAutosave();
         setPresetsOpen(true);
       }
     } else {

@@ -47,6 +47,9 @@ export default function Scene3D() {
           outputColorSpace: THREE.SRGBColorSpace
         }}
       >
+        {/* Scene background – visible immediately, prevents black flash before Environment loads */}
+        <color attach="background" args={['#1a1a2e']} />
+
         {/* Always-on fallback lights – keep geometry visible while Environment loads */}
         <ambientLight intensity={0.4} />
         <directionalLight position={[10, 20, 10]} intensity={0.8} castShadow />
