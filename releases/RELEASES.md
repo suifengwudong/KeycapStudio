@@ -1,5 +1,37 @@
 # KeycapStudio Releases
 
+## v1.3.1 - Bug Fixes and Stability Improvements (2026-03-07)
+
+### 🐛 Bug Fixes
+
+- Fix rendering instability after tab switching
+- Fix black 3D scene background on startup
+- Remove repeated unsaved-project popup
+- Fix cross-orientation of dish cap for non-1U keys
+- Remove duplicate Legend Text from 3D inspector
+- Fix keycap shape for all sizes with proper Cherry profile parameters
+
+### 🔧 Technical Improvements
+
+- Improved stability and user experience
+- Better 3D display handling
+
+### 📦 Files
+
+- `KeycapStudio-v1.3.1.zip` - Complete web application with latest fixes
+
+### 🚀 Deployment
+
+The application is a static single-page application. Simply serve the `dist/` folder with any static web server.
+
+```bash
+# Using Python
+python -m http.server 8080 -d dist
+
+# Using Node.js
+npx serve dist
+```
+
 ## v1.3.0 - Performance & Bundle Optimisation (2026-02-26)
 
 ### 🎉 Major Features
