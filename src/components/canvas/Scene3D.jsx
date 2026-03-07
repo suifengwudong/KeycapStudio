@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { 
   OrbitControls, 
@@ -26,9 +26,32 @@ function PerformanceOverlay() {
 export default function Scene3D() {
   const scene = useSceneStore(s => s.scene);
 
+  // ── WebGL context-loss recovery ───────────────────────────────────────────
+  // Browsers may discard the WebGL context when the tab is backgrounded or
+  // the OS reclaims GPU memory.  Calling event.preventDefault() on the "lost"
+  // event requests automatic restoration; when the context is restored we force
+  // the Canvas to remount (via the key prop) so R3F re-initialises cleanly.
+  const [canvasKey, setCanvasKey] = useState(0);
+  const handleCreated = useCallback(({ gl }) => {
+    const canvas = gl.domElement;
+    const onContextLost = (e) => {
+      e.preventDefault(); // tell the browser to restore the context
+    };
+    const onContextRestored = () => {
+      setCanvasKey(k => k + 1); // force Canvas remount → R3F reinitialises
+    };
+    canvas.addEventListener('webglcontextlost', onContextLost);
+    canvas.addEventListener('webglcontextrestored', onContextRestored);
+    // Cleanup is intentionally omitted: the listeners are attached to the
+    // canvas DOM element which is destroyed when the Canvas unmounts (key
+    // change), so they are garbage-collected automatically.
+  }, []);
+
   return (
     <div className="w-full h-full relative">
       <Canvas
+        key={canvasKey}
+        onCreated={handleCreated}
         camera={{ 
           position: [35, 35, 35], 
           fov: 45,
@@ -47,6 +70,9 @@ export default function Scene3D() {
           outputColorSpace: THREE.SRGBColorSpace
         }}
       >
+        {/* Scene background – visible immediately, prevents black flash before Environment loads */}
+        <color attach="background" args={['#1a1a2e']} />
+
         {/* Always-on fallback lights – keep geometry visible while Environment loads */}
         <ambientLight intensity={0.4} />
         <directionalLight position={[10, 20, 10]} intensity={0.8} castShadow />
@@ -58,7 +84,7 @@ export default function Scene3D() {
         <OrbitControls 
           makeDefault
           minPolarAngle={0}
-          maxPolarAngle={Math.PI / 2}
+          maxPolarAngle={Math.PI * 0.9}  // allow tilting below horizontal to inspect the bottom face
           minDistance={10}
           maxDistance={100}
           enableDamping
