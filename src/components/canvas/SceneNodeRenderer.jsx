@@ -78,8 +78,12 @@ function _getPreviewGeometry(profile, size, topRadius, dishDepth, height) {
   // Evict the oldest (first-inserted) entry when the cache is full.
   // This is a simple FIFO policy; the small cache size (20) makes it sufficient
   // for typical editing sessions where only a handful of unique shapes are used.
+  // Dispose the evicted geometry to free WebGL buffer resources and prevent
+  // GPU memory exhaustion when the user switches settings frequently.
   if (_geoCache.size >= _GEO_CACHE_MAX) {
-    _geoCache.delete(_geoCache.keys().next().value);
+    const oldestKey = _geoCache.keys().next().value;
+    _geoCache.get(oldestKey)?.dispose();
+    _geoCache.delete(oldestKey);
   }
   _geoCache.set(key, geo);
   return geo;
