@@ -24,6 +24,8 @@ export const translations = {
     legacyExport      : '导出 .keycap',
     confirmDiscard    : '放弃未保存的修改？',
     confirmRestore    : '发现未保存的项目，是否恢复？',
+    restoreYes        : '恢复',
+    restoreNo         : '放弃',
 
     // ── Inspector panel header (3D) ───────────────────────────────────────────
     inspector         : '检查器',
@@ -82,6 +84,8 @@ export const translations = {
     legacyExport      : 'Export .keycap',
     confirmDiscard    : 'Discard unsaved changes?',
     confirmRestore    : 'An unsaved project was found. Restore it?',
+    restoreYes        : 'Restore',
+    restoreNo         : 'Discard',
 
     // ── Inspector panel header (3D) ───────────────────────────────────────────
     inspector         : 'Inspector',
