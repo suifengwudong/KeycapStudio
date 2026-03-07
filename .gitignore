@@ -32,3 +32,6 @@ yarn-error.log*
 releases/*.zip
 releases/*.exe
 releases/*.dmg
+
+# Personal Docs
+docs/
