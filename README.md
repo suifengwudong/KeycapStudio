@@ -2,7 +2,7 @@
 
 > Design and export production-ready 3D keycap models (STL) with a clean, single-page browser-based tool.
 
-> If you want to read the Chinese version of this README, please check the pdf file in the `docs/txt` folder.
+> If you want to read the Chinese pdf version of this README, please check the file in the `docs/` folder.
 
 ---
 
